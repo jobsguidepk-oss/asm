@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Enterprise ERP v41.0 Absolute</title>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f1f5f9; --success: #10b981; --danger: #ef4444; --warn: #f59e0b; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; padding: 20px; }
+        .nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 25px; }
+        .btn-nav { background: var(--card); border: 1px solid #334155; color: white; padding: 14px; border-radius: 12px; cursor: pointer; font-weight: bold; text-align: center; }
+        .btn-nav.active { background: var(--accent); border-color: var(--accent); }
+        .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #334155; margin-bottom: 20px; position: relative; }
+        .view { display: none; } .view.active { display: block; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
+        .btn-action { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; position: relative; }
+        .btn-action:disabled { opacity: 0.6; cursor: wait; }
+        .btn-action.loading { color: transparent; }
+        .btn-action.loading::after { content: ""; position: absolute; width: 16px; height: 16px; top: 0; left: 0; right: 0; bottom: 0; margin: auto; border: 3px solid transparent; border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { padding: 12px; border-bottom: 1px solid #334155; text-align: left; }
+        th { color: var(--accent); background: rgba(0,0,0,0.2); }
+        #toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 25px; border-radius: 10px; color: white; z-index: 10000; display:none; font-weight:bold; }
+        .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; }
+        .stat-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .stat-item { background: #0f172a; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #334155; }
+    </style>
+</head>
+<body>
+<div id="toast"></div>
+
+<div id="modalDispatch" class="modal">
+    <div class="card" style="width:400px;">
+        <h3>Dispatch Assignment</h3>
+        <input type="hidden" id="mdRowId">
+        <select id="mdCourier"><option>Pak Post</option><option>TCS</option><option>LCS</option><option>M&P</option><option>PostEx</option></select>
+        <input id="mdTrack" placeholder="Tracking Number">
+        <button class="btn-action" id="mdBtn" onclick="saveDispatchMerged()">Confirm Dispatch</button>
+        <button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button>
+    </div>
+</div>
+
+<div id="infoModal" class="modal">
+    <div class="card" style="width:350px; text-align:center;">
+        <h3>Tracking Details</h3>
+        <div id="infoContent" style="text-align:left; margin:15px 0; line-height:1.8;"></div>
+        <button class="btn-action" onclick="document.getElementById('infoModal').style.display='none'">Close Window</button>
+    </div>
+</div>
+
+<div id="modalPay" class="modal">
+    <div class="card" style="width:400px;">
+        <h3 id="mpTitle">Record Transaction</h3>
+        <input type="hidden" id="mpId"><input type="hidden" id="mpType">
+        <input id="mpAmt" type="number" placeholder="Amount (Rs.)">
+        <input id="mpNote" placeholder="Notes (Ref #)">
+        <button class="btn-action" id="mpBtn" onclick="submitPay()">Save Payment</button>
+        <button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button>
+    </div>
+</div>
+
+<div class="nav">
+    <button class="btn-nav active" onclick="showV('orders', this)">Orders</button>
+    <button class="btn-nav" onclick="showV('tracker', this)">Tracker</button>
+    <button class="btn-nav" onclick="showV('mgmt', this)">Management</button>
+    <button class="btn-nav" onclick="showV('finance', this)">Finance</button>
+</div>
+
+<div id="tracker" class="view">
+    <div class="card" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; align-items:end;">
+        <div><label><small>Status</small></label><select id="fStatus" onchange="applyFilters()"><option value="">All</option><option value="Pending">New</option><option value="Assigned">Working</option><option value="Completed">Ready</option><option value="Dispatched">Dispatched</option></select></div>
+        <div><label><small>Coord</small></label><select id="fCoord" onchange="filterWriters(); applyFilters()"></select></div>
+        <div><label><small>Writer</small></label><select id="fWriter" onchange="applyFilters()"></select></div>
+        <button class="btn-action" style="background:#475569" onclick="resetFilters()">Reset</button>
+        <button class="btn-action" id="reBtn" style="background:var(--warn); color:#000;" onclick="loadT()">Refresh ↻</button>
+    </div>
+    <div class="card">
+        <table>
+            <thead><tr><th>Order ID</th><th>Student (Roll)</th><th>Subject (Qty)</th><th>No of Days</th><th>Staff</th><th>Action</th></tr></thead>
+            <tbody id="trackBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="mgmt" class="view">
+    <div class="card">
+        <h3>Staff Registry</h3>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px;">
+            <select id="pRole" onchange="toggleL()"><option value="Coordinator">Coordinator</option><option value="Writer">Writer</option></select>
+            <input id="pName" placeholder="Full Name"><input id="pMobile" placeholder="Mobile Number">
+            <select id="pLink" style="display:none;"></select>
+        </div>
+        <button class="btn-action" id="pBtn" onclick="saveStaff()">Add Staff Member</button>
+    </div>
+    <div class="card">
+        <h3>Class Rates Settings</h3>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px;">
+            <input id="mClass" placeholder="Class Code"><input id="mSession" placeholder="Session">
+            <input id="mRate" type="number" placeholder="Writer Pay Rate"><input type="date" id="mDate">
+        </div>
+        <button class="btn-action" id="mBtn" onclick="saveRate()">Save Configuration</button>
+    </div>
+</div>
+
+<div id="finance" class="view">
+    <div class="stat-bar">
+        <div class="stat-item">Rec. Total<h3 id="fRec">0</h3></div>
+        <div class="stat-item">Received<h3 id="fPaid">0</h3></div>
+        <div class="stat-item">Payable (Writer)<h3 id="fWrit">0</h3></div>
+        <div class="stat-item">Net Profit<h3 id="fNet">0</h3></div>
+    </div>
+    <div class="card">
+        <div style="display:flex;gap:10px;margin-bottom:15px;">
+            <button class="btn-nav" onclick="renderFin('rec')">Student Ledger</button>
+            <button class="btn-nav" onclick="renderFin('pay')">Writer Ledger</button>
+        </div>
+        <table id="fTable"><thead><tr id="fHead"></tr></thead><tbody id="fBody"></tbody></table>
+    </div>
+</div>
+
+<div id="orders" class="view active">
+    <div class="card">
+        <h3>New Order Entry</h3>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+            <input id="oName" placeholder="Student Name"><input id="oId" placeholder="Roll No"><input id="oMob" placeholder="WhatsApp">
+            <select id="oClass" onchange="updSessions()"></select><select id="oSession"></select><input id="oAdv" type="number" placeholder="Advance Payment">
+        </div>
+        <div id="oSubs"></div>
+        <button onclick="addSubjectRow()" style="width:100%; margin:10px 0; background:none; border:1px dashed #555; color:#aaa; cursor:pointer; padding:8px;">+ Add Subject</button>
+        <button class="btn-action" id="oBtn" onclick="saveOrder()">Submit Order</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwR-rTCQ4-Y6OaaSLKW4U7uP1Tgy_i05Ig3Gdhjv08TbZBjjUgrSMQOIPn1V3S1rm_X-g/exec";
+    let state = { people: [], classes: [], pending: [], fin: {} };
+
+    async function api(action, payload, btnId) {
+        const btn = btnId ? document.getElementById(btnId) : null;
+        if(btn) { btn.disabled = true; btn.classList.add('loading'); }
+        try {
+            const r = await fetch(API_URL, { method: "POST", body: JSON.stringify({action, payload}), redirect: "follow" });
+            const res = await r.json();
+            if(res.status === 'success') {
+                if(!['getInitData','getPending','getFinanceData'].includes(action)) toast("Operation Successful!", "#10b981");
+                return res.data;
+            }
+            toast(res.message, "#ef4444"); return null;
+        } catch(e) { return null; }
+        finally { if(btn) { btn.disabled = false; btn.classList.remove('loading'); } }
+    }
+
+    function toast(m, c) { const t = document.getElementById('toast'); t.innerText = m; t.style.background = c; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 3000); }
+    function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+
+    /** CORE UI LOGIC */
+    function showV(id, btn) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.querySelectorAll('.btn-nav').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if(id === 'tracker') loadT(); if(id === 'finance') loadF();
+    }
+
+    async function init() {
+        const d = await api('getInitData', {}); if(!d) return;
+        state.people = d.people; state.classes = d.classes;
+        const coords = state.people.filter(p => p.role === 'Coordinator');
+        document.getElementById('pLink').innerHTML = '<option value="">Link Coord</option>' + coords.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        document.getElementById('fCoord').innerHTML = '<option value="">All Coords</option>' + coords.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        document.getElementById('oClass').innerHTML = '<option value="">Select Class</option>' + [...new Set(state.classes.map(c=>c.className))].map(c=>`<option>${c}</option>`).join('');
+    }
+
+    /** CHAINED DROPDOWNS */
+    function updSessions() {
+        const cls = document.getElementById('oClass').value;
+        document.getElementById('oSession').innerHTML = state.classes.filter(x => x.className === cls).map(s => `<option>${s.session}</option>`).join('');
+    }
+    function filterWriters() {
+        const cName = document.getElementById('fCoord').value;
+        const writers = state.people.filter(p => p.role === 'Writer' && (cName === "" || String(p.linkedCoord).trim() === cName));
+        document.getElementById('fWriter').innerHTML = '<option value="">All Writers</option>' + writers.map(w=>`<option value="${w.name}">${w.name}</option>`).join('');
+    }
+
+    /** TRACKER RENDER (FIXED) */
+    async function loadT() { state.pending = await api('getPending', {}, 'reBtn'); applyFilters(); }
+    function applyFilters() {
+        const sF = document.getElementById('fStatus').value, cF = document.getElementById('fCoord').value, wF = document.getElementById('fWriter').value;
+        const filtered = state.pending.filter(r => (sF === "" || r.status === sF) && (cF === "" || r.coordinatorId === cF) && (wF === "" || r.writerName === wF || r.writerId === wF));
+        renderTracker(filtered);
+    }
+    function renderTracker(data) {
+        const tbody = document.getElementById('trackBody'); const now = new Date(); tbody.innerHTML = "";
+        const coords = state.people.filter(p => p.role === 'Coordinator');
+        data.forEach(r => {
+            const age = Math.floor((now - (r.orderDate ? new Date(r.orderDate) : now)) / 86400000) || 0;
+            let staff = "", action = "";
+            if (r.status === 'Pending' || !r.status) {
+                staff = `<select onchange="updW('${r.subjectRowId}', this)" id="c-${r.subjectRowId}" style="width:85px;font-size:10px;"><option value="">Coord</option>${coords.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}</select>
+                         <select id="w-${r.subjectRowId}" style="width:85px;font-size:10px;"><option value="">Writer</option></select>`;
+                action = `<button class="btn-action" style="padding:6px; font-size:11px;" id="btnA-${r.subjectRowId}" onclick="assign('${r.subjectRowId}')">Assign</button>`;
+            } else {
+                staff = `<small><b>C:</b> ${r.coordinatorId}<br><b>W:</b> ${r.writerName}</small>`;
+                if(r.status === 'Assigned') action = `<button class="btn-action" id="btnC-${r.subjectRowId}" style="background:var(--success);padding:6px;font-size:11px;" onclick="done('${r.subjectRowId}')">Complete</button>`;
+                else if(r.status === 'Completed') action = `<button class="btn-action" style="background:var(--warn);color:#000;padding:6px;font-size:11px;" onclick="openDM('${r.subjectRowId}')">Ship</button>`;
+                else action = `<div><span style="color:var(--success);font-weight:bold;">✓ Shipped</span><br><button class="btn-action" style="background:#475569; padding:4px; font-size:10px; margin-top:5px;" onclick="viewTracking('${r.courier}', '${r.trackNo}', '${r.dispatchDate}')">View Info</button></div>`;
+            }
+            tbody.innerHTML += `<tr><td>${r.orderId}</td><td><b>${r.studentName}</b><br><small>${r.studentId}</small></td><td>${r.subjectCode} (${r.assignmentsCount})</td><td>${age} Days</td><td>${staff}</td><td>${action}</td></tr>`;
+        });
+    }
+
+    function viewTracking(courier, track, date) { const d = new Date(date).toLocaleDateString(); document.getElementById('infoContent').innerHTML = `<b>Courier:</b> ${courier || 'N/A'}<br><b>Tracking #:</b> ${track || 'N/A'}<br><b>Date:</b> ${d}`; document.getElementById('infoModal').style.display = 'flex'; }
+
+    /** FINANCE LOGIC */
+    async function loadF() { const d = await api('getFinanceData', {}); state.fin = d; renderFin('rec'); }
+    function renderFin(type) {
+        const h = document.getElementById('fHead'); const b = document.getElementById('fBody'); b.innerHTML = "";
+        let recT = 0, paidT = 0, payW = 0;
+        state.fin.tasks.forEach(t => { recT += (t.assignmentsCount * t.rateCustomerPerAssignment); if(t.status !== 'Pending') payW += (t.assignmentsCount * t.writerPayPerAssignment); });
+        state.fin.trans.forEach(tr => { if(tr.type==='Receivable') paidT += Number(tr.amount); });
+        document.getElementById('fRec').innerText = recT; document.getElementById('fPaid').innerText = paidT; document.getElementById('fWrit').innerText = payW; document.getElementById('fNet').innerText = paidT - payW;
+
+        if(type === 'rec') {
+            h.innerHTML = "<th>Student</th><th>Roll No</th><th>Total</th><th>Paid</th><th>Action</th>";
+            state.fin.orders.forEach(o => {
+                const total = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (b.assignmentsCount * b.rateCustomerPerAssignment), 0);
+                const paid = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0);
+                b.innerHTML += `<tr><td>${o.studentName}</td><td>${o.studentId}</td><td>${total}</td><td>${paid}</td><td><button onclick="openPay('${o.orderId}','Receivable')">Pay</button></td></tr>`;
+            });
+        } else {
+            h.innerHTML = "<th>Writer</th><th>Payable</th><th>Paid</th><th>Action</th>";
+            const writers = [...new Set(state.fin.tasks.filter(t=>t.writerId).map(t=>t.writerId))];
+            writers.forEach(w => {
+                const name = state.fin.people.find(p => p.personId === w)?.name || w;
+                const total = state.fin.tasks.filter(t => t.writerId === w && t.status !== 'Pending').reduce((a, b) => a + (b.assignmentsCount * b.writerPayPerAssignment), 0);
+                const paid = state.fin.trans.filter(tr => tr.refId === w && tr.type === 'Payable').reduce((a, b) => a + Number(b.amount), 0);
+                b.innerHTML += `<tr><td>${name}</td><td>${total}</td><td>${paid}</td><td><button onclick="openPay('${w}','Payable')">Record</button></td></tr>`;
+            });
+        }
+    }
+
+    /** UTILS */
+    function openPay(id, type) { document.getElementById('mpId').value = id; document.getElementById('mpType').value = type; document.getElementById('modalPay').style.display = 'flex'; }
+    async function submitPay() { const p = { refId: document.getElementById('mpId').value, type: document.getElementById('mpType').value, amount: document.getElementById('mpAmt').value, note: document.getElementById('mpNote').value }; if(await api('recordPayment', p, 'mpBtn')) { closeModals(); loadF(); } }
+    async function saveStaff() { const p = { role: document.getElementById('pRole').value, name: document.getElementById('pName').value, mobile: document.getElementById('pMobile').value, linkedCoordName: document.getElementById('pLink').value }; if(await api('addPerson', p, 'pBtn')) init(); }
+    async function saveRate() { const p = { className: document.getElementById('mClass').value, session: document.getElementById('mSession').value, rate: document.getElementById('mRate').value, deadlineDate: document.getElementById('mDate').value }; if(await api('saveClassRate', p, 'mBtn')) init(); }
+    async function saveOrder() { 
+        const subs = []; document.querySelectorAll('#oSubs div').forEach(b => { if(b.querySelector('.sc').value) subs.push({code:b.querySelector('.sc').value, count:b.querySelector('.sn').value, rate:b.querySelector('.sr').value}) });
+        const p = { studentName: document.getElementById('oName').value, studentId: document.getElementById('oId').value, mobile: document.getElementById('oMob').value, className: document.getElementById('oClass').value, session: document.getElementById('oSession').value, advance: document.getElementById('oAdv').value, subjects: subs };
+        if(await api('createOrder', p, 'oBtn')) location.reload();
+    }
+    async function assign(id) { const c = document.getElementById('c-'+id).value, w = document.getElementById('w-'+id).value; if(await api('assignTask',{rowId:id,coordId:c,writerId:w}, 'btnA-'+id)) loadT(); }
+    async function done(id) { if(await api('completeTask',{rowId:id}, 'btnC-'+id)) loadT(); }
+    function openDM(id) { document.getElementById('mdRowId').value = id; document.getElementById('modalDispatch').style.display = 'flex'; }
+    async function saveDispatchMerged() { const p = { rowId: document.getElementById('mdRowId').value, courier: document.getElementById('mdCourier').value, track: document.getElementById('mdTrack').value }; if(await api('saveDispatch', p, 'mdBtn')) { closeModals(); loadT(); } }
+    function addSubjectRow() { const d = document.createElement('div'); d.innerHTML = `<div style="display:flex;gap:5px;margin-top:5px;"><input class="sc" placeholder="Code"><select class="sn"><option value="2">2</option><option value="4">4</option></select><input class="sr" placeholder="Rate"></div>`; document.getElementById('oSubs').appendChild(d); }
+    function updW(rowId, coordSelect) {
+        const cName = String(coordSelect.value).trim();
+        const writers = state.people.filter(p => p.role === 'Writer' && String(p.linkedCoord).trim() === cName);
+        document.getElementById('w-' + rowId).innerHTML = '<option value="">Writer</option>' + writers.map(w=>`<option value="${w.personId}">${w.name}</option>`).join('');
+    }
+    function resetFilters() { document.getElementById('fStatus').value = ""; document.getElementById('fCoord').value = ""; document.getElementById('fWriter').value = ""; applyFilters(); }
+    function toggleL() { document.getElementById('pLink').style.display = (document.getElementById('pRole').value==='Writer')?'block':'none'; }
+    window.onload = () => { init(); addSubjectRow(); };
+</script>
+</body>
+</html>
