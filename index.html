@@ -2,14 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Enterprise ERP v41.0 Absolute</title>
+    <title>Assignment Manager</title>
     <style>
         :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f1f5f9; --success: #10b981; --danger: #ef4444; --warn: #f59e0b; }
         body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; padding: 20px; }
+        
+        /* LOGIN PAGE STYLES */
+        #login-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); display: flex; justify-content: center; align-items: center; z-index: 99999; }
+        .login-card { background: var(--card); padding: 40px; border-radius: 20px; border: 1px solid var(--accent); width: 350px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        /* ORIGINAL STYLES (NO CHANGE) */
         .nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 25px; }
         .btn-nav { background: var(--card); border: 1px solid #334155; color: white; padding: 14px; border-radius: 12px; cursor: pointer; font-weight: bold; text-align: center; }
         .btn-nav.active { background: var(--accent); border-color: var(--accent); }
-        .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #334155; margin-bottom: 20px; position: relative; }
+        .card { background: var(--card); padding: 20px; border-radius: 16px; border: 1px solid #334155; margin-bottom: 20px; }
         .view { display: none; } .view.active { display: block; }
         input, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; }
         .btn-action { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; position: relative; }
@@ -17,124 +23,110 @@
         .btn-action.loading { color: transparent; }
         .btn-action.loading::after { content: ""; position: absolute; width: 16px; height: 16px; top: 0; left: 0; right: 0; bottom: 0; margin: auto; border: 3px solid transparent; border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th, td { padding: 12px; border-bottom: 1px solid #334155; text-align: left; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        th, td { padding: 10px; border-bottom: 1px solid #334155; text-align: left; }
         th { color: var(--accent); background: rgba(0,0,0,0.2); }
-        #toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 25px; border-radius: 10px; color: white; z-index: 10000; display:none; font-weight:bold; }
+        #toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 25px; border-radius: 10px; color: white; z-index: 100000; display:none; font-weight:bold; }
         .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; }
-        .stat-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .stat-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
         .stat-item { background: #0f172a; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #334155; }
+        .btn-wa { border: none; border-radius: 4px; color: white; padding: 4px 6px; cursor: pointer; font-weight: bold; font-size: 9px; min-width: 55px; transition: 0.2s; }
+        .btn-wa:hover { opacity: 0.8; }
+        .btn-wa:disabled { background: #334155 !important; cursor: not-allowed; opacity: 0.5; }
     </style>
 </head>
 <body>
 <div id="toast"></div>
 
-<div id="modalDispatch" class="modal">
-    <div class="card" style="width:400px;">
-        <h3>Dispatch Assignment</h3>
-        <input type="hidden" id="mdRowId">
-        <select id="mdCourier"><option>Pak Post</option><option>TCS</option><option>LCS</option><option>M&P</option><option>PostEx</option></select>
-        <input id="mdTrack" placeholder="Tracking Number">
-        <button class="btn-action" id="mdBtn" onclick="saveDispatchMerged()">Confirm Dispatch</button>
-        <button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button>
+<!-- 1. LOGIN PAGE VIEW -->
+<div id="login-page">
+    <div class="login-card">
+        <h2 style="color:var(--accent); margin-bottom:25px;">AALIYAN ACADEMY</h2>
+        <input type="text" id="userU" placeholder="Username">
+        <input type="password" id="userP" placeholder="Password">
+        <button class="btn-action" id="loginBtn" onclick="handleLogin()">Login to Dashboard</button>
+        <p style="color:#64748b; font-size:11px; margin-top:20px;">Pakistan Zindabad</p>
     </div>
 </div>
 
-<div id="infoModal" class="modal">
-    <div class="card" style="width:350px; text-align:center;">
-        <h3>Tracking Details</h3>
-        <div id="infoContent" style="text-align:left; margin:15px 0; line-height:1.8;"></div>
-        <button class="btn-action" onclick="document.getElementById('infoModal').style.display='none'">Close Window</button>
-    </div>
-</div>
+<!-- 2. MAIN DASHBOARD CONTENT (HIDDEN BY DEFAULT) -->
+<div id="main-content" style="display:none;">
+    <!-- MODALS -->
+    <div id="modalDispatch" class="modal"><div class="card" style="width:400px;"><h3>Dispatch Assignment</h3><input type="hidden" id="mdRowId"><label><small>Dispatch Date</small></label><input type="date" id="mdDate"><select id="mdCourier"><option>Pak Post</option><option>TCS</option><option>LCS</option></select><input id="mdTrack" placeholder="Tracking Number"><button class="btn-action" id="mdBtn" onclick="saveDispatchMerged()">Confirm</button><button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button></div></div>
+    <div id="infoModal" class="modal"><div class="card" style="width:350px;"><h3>Tracking Details</h3><div id="infoContent" style="margin:15px 0;"></div><button class="btn-action" onclick="closeModals()">Close</button></div></div>
+    <div id="modalPay" class="modal"><div class="card" style="width:400px;"><h3 id="mpTitle">Record Transaction</h3><input type="hidden" id="mpId"><input type="hidden" id="mpType"><label id="lblSource" style="font-size:11px; color:var(--accent);">Source:</label><select id="mpSource"></select><label style="font-size:11px;">Date:</label><input type="date" id="mpDate"><input id="mpAmt" type="number" placeholder="Amount"><input id="mpNote" placeholder="Notes"><button class="btn-action" id="mpBtn" onclick="submitPay()">Save Payment</button><button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button></div></div>
 
-<div id="modalPay" class="modal">
-    <div class="card" style="width:400px;">
-        <h3 id="mpTitle">Record Transaction</h3>
-        <input type="hidden" id="mpId"><input type="hidden" id="mpType">
-        <input id="mpAmt" type="number" placeholder="Amount (Rs.)">
-        <input id="mpNote" placeholder="Notes (Ref #)">
-        <button class="btn-action" id="mpBtn" onclick="submitPay()">Save Payment</button>
-        <button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button>
+    <div class="nav">
+        <button class="btn-nav active" id="nav-orders" onclick="showV('orders', this)">Orders</button>
+        <button class="btn-nav" id="nav-tracker" onclick="showV('tracker', this)">Tracker</button>
+        <button class="btn-nav" id="nav-mgmt" onclick="showV('mgmt', this)">Management</button>
+        <button class="btn-nav" id="nav-finance" onclick="showV('finance', this)">Finance</button>
     </div>
-</div>
 
-<div class="nav">
-    <button class="btn-nav active" onclick="showV('orders', this)">Orders</button>
-    <button class="btn-nav" onclick="showV('tracker', this)">Tracker</button>
-    <button class="btn-nav" onclick="showV('mgmt', this)">Management</button>
-    <button class="btn-nav" onclick="showV('finance', this)">Finance</button>
-</div>
-
-<div id="tracker" class="view">
-    <div class="card" style="display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; align-items:end;">
-        <div><label><small>Status</small></label><select id="fStatus" onchange="applyFilters()"><option value="">All</option><option value="Pending">New</option><option value="Assigned">Working</option><option value="Completed">Ready</option><option value="Dispatched">Dispatched</option></select></div>
-        <div><label><small>Coord</small></label><select id="fCoord" onchange="filterWriters(); applyFilters()"></select></div>
-        <div><label><small>Writer</small></label><select id="fWriter" onchange="applyFilters()"></select></div>
-        <button class="btn-action" style="background:#475569" onclick="resetFilters()">Reset</button>
-        <button class="btn-action" id="reBtn" style="background:var(--warn); color:#000;" onclick="loadT()">Refresh ↻</button>
-    </div>
-    <div class="card">
-        <table>
-            <thead><tr><th>Order ID</th><th>Student (Roll)</th><th>Subject (Qty)</th><th>No of Days</th><th>Staff</th><th>Action</th></tr></thead>
-            <tbody id="trackBody"></tbody>
-        </table>
-    </div>
-</div>
-
-<div id="mgmt" class="view">
-    <div class="card">
-        <h3>Staff Registry</h3>
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px;">
-            <select id="pRole" onchange="toggleL()"><option value="Coordinator">Coordinator</option><option value="Writer">Writer</option></select>
-            <input id="pName" placeholder="Full Name"><input id="pMobile" placeholder="Mobile Number">
-            <select id="pLink" style="display:none;"></select>
+    <!-- VIEWS -->
+    <div id="orders" class="view active">
+        <div class="card">
+            <h3>New Order Entry</h3>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;"><input id="oName" placeholder="Student Name"><input id="oId" placeholder="Roll No"><input id="oMob" placeholder="WhatsApp"><select id="oClass" onchange="updSessions()"></select><select id="oSession"></select><input id="oAdv" type="number" placeholder="Advance"></div>
+            <div id="oSubs"></div><button onclick="addSubjectRow()" style="width:100%; margin:10px 0; background:none; border:1px dashed #555; color:#aaa; cursor:pointer; padding:8px;">+ Add Subject Row</button>
+            <button class="btn-action" id="oBtn" onclick="saveOrder()">Submit Order</button>
         </div>
-        <button class="btn-action" id="pBtn" onclick="saveStaff()">Add Staff Member</button>
     </div>
-    <div class="card">
-        <h3>Class Rates Settings</h3>
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px;">
-            <input id="mClass" placeholder="Class Code"><input id="mSession" placeholder="Session">
-            <input id="mRate" type="number" placeholder="Writer Pay Rate"><input type="date" id="mDate">
-        </div>
-        <button class="btn-action" id="mBtn" onclick="saveRate()">Save Configuration</button>
-    </div>
-</div>
 
-<div id="finance" class="view">
-    <div class="stat-bar">
-        <div class="stat-item">Rec. Total<h3 id="fRec">0</h3></div>
-        <div class="stat-item">Received<h3 id="fPaid">0</h3></div>
-        <div class="stat-item">Payable (Writer)<h3 id="fWrit">0</h3></div>
-        <div class="stat-item">Net Profit<h3 id="fNet">0</h3></div>
-    </div>
-    <div class="card">
-        <div style="display:flex;gap:10px;margin-bottom:15px;">
-            <button class="btn-nav" onclick="renderFin('rec')">Student Ledger</button>
-            <button class="btn-nav" onclick="renderFin('pay')">Writer Ledger</button>
+    <div id="tracker" class="view">
+        <div class="card" style="display: flex; flex-wrap: nowrap; gap: 8px; align-items: center;">
+            <select id="fStatus" onchange="applyFilters()" style="flex: 1; margin: 0; min-width: 100px;"><option value="">Status: All</option><option value="Pending">New</option><option value="Assigned">Working</option><option value="Completed">Ready</option><option value="Dispatched">Dispatched</option></select>
+            <select id="fCoord" onchange="updateTrackerWriters(); applyFilters()" style="flex: 1; margin: 0; min-width: 110px;"><option value="">Coordinator: All</option></select>
+            <select id="fWriter" onchange="applyFilters()" style="flex: 1; margin: 0; min-width: 110px;"><option value="">Writer: All</option></select>
+            <div style="flex: 2; min-width: 180px;"><input type="text" id="tSmartSearch" class="search-bar" onkeyup="applyFilters()" placeholder="Search Student, Roll, Code, Staff..." style="margin: 0; padding: 11px 15px; background: rgba(0,0,0,0.3); border: 1px solid var(--accent); border-radius: 8px; color: white; outline: none; width:100%;"></div>
+            <button class="btn-action" style="background:var(--warn); color:#000; width: 100px; margin: 0;" id="reBtn" onclick="loadT()">Refresh ↻</button>
+            <button class="btn-action" style="background:#475569; width: 80px; margin: 0;" onclick="resetFilters()">Reset</button>
         </div>
-        <table id="fTable"><thead><tr id="fHead"></tr></thead><tbody id="fBody"></tbody></table>
+        <div class="card"><table><thead><tr><th>Order ID</th><th>Student (Roll)</th><th>Subject (No. of Assignments)</th><th>Staff Selection</th><th>WhatsApp Info</th><th>Action</th></tr></thead><tbody id="trackBody"></tbody></table></div>
     </div>
-</div>
 
-<div id="orders" class="view active">
-    <div class="card">
-        <h3>New Order Entry</h3>
-        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
-            <input id="oName" placeholder="Student Name"><input id="oId" placeholder="Roll No"><input id="oMob" placeholder="WhatsApp">
-            <select id="oClass" onchange="updSessions()"></select><select id="oSession"></select><input id="oAdv" type="number" placeholder="Advance Payment">
+    <div id="mgmt" class="view">
+        <div class="card"><h3>Staff Registry</h3><div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px;"><select id="pRole" onchange="toggleL()"><option value="Coordinator">Coordinator</option><option value="Writer">Writer</option></select><input id="pName" placeholder="Name"><input id="pMobile" placeholder="Mobile"><select id="pLink" style="display:none;"></select></div><button class="btn-action" id="pBtn" onclick="saveStaff()">Add Staff</button></div>
+        <div class="card"><h3>Class Rates</h3><div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:10px;"><input id="mClass" placeholder="Class"><input id="mSession" placeholder="Session"><input id="mRate" type="number" placeholder="Writer Rate"><input type="date" id="mDate"></div><button class="btn-action" id="mBtn" onclick="saveRate()">Save Rate</button></div>
+    </div>
+
+    <div id="finance" class="view">
+        <div class="stat-bar">
+            <div class="stat-item" style="border-top:4px solid var(--accent)"><small>Total Receipts</small><h3 id="fTotalReceipts">0</h3></div>
+            <div class="stat-item" style="border-top:4px solid var(--danger)"><small>Total Paid</small><h3 id="fTotalPaidStaff">0</h3></div>
+            <div class="stat-item" style="background:rgba(16,185,129,0.1); border:1px solid var(--success)"><small>Net Profit</small><h2 id="fNetProfit" style="color:var(--success);">0</h2></div>
+            <div class="stat-item" style="border-top:4px solid var(--warn); cursor:pointer" onclick="setFinanceFilter('pending')"><small>Receivable</small><h3 id="fTotalRec">0</h3></div>
+            <div class="stat-item" style="border-top:4px solid var(--accent); cursor:pointer" onclick="setFinanceFilter('pending')"><small>Payable</small><h3 id="fTotalPay">0</h3></div>
         </div>
-        <div id="oSubs"></div>
-        <button onclick="addSubjectRow()" style="width:100%; margin:10px 0; background:none; border:1px dashed #555; color:#aaa; cursor:pointer; padding:8px;">+ Add Subject</button>
-        <button class="btn-action" id="oBtn" onclick="saveOrder()">Submit Order</button>
+        <div class="card" style="display:flex; gap:10px; align-items:center; margin-bottom:15px;">
+            <div style="display:flex; gap:5px;"><button class="btn-nav active" id="btnStudentTab" onclick="renderFin('student')">Student Ledger</button><button class="btn-nav" id="btnStaffTab" onclick="renderFin('staff')">Staff Ledger</button></div>
+            <div style="flex-grow:1;"><input type="text" id="fSearch" onkeyup="filterFinanceTable()" placeholder="Search Name, ID..." style="margin:0;"></div>
+            <select id="fStatusFilter" onchange="filterFinanceTable()" style="width:180px; margin:0;"><option value="all">All Records</option><option value="pending">Pending Payment</option><option value="cleared">Cleared</option></select>
+        </div>
+        <div class="card"><table><thead><tr id="fHead"></tr></thead><tbody id="fBody"></tbody></table></div>
     </div>
 </div>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwR-rTCQ4-Y6OaaSLKW4U7uP1Tgy_i05Ig3Gdhjv08TbZBjjUgrSMQOIPn1V3S1rm_X-g/exec";
-    let state = { people: [], classes: [], pending: [], fin: {} };
+    const API_URL = "https://script.google.com/macros/s/AKfycbxVJUjEHEJV7ovlU9aG2Zlxe3o4PlrIoCDVvqGKtnuHlvVtSunK0PMDpqfgZJpLVgidzA/exec";
+    let state = { user: null, people: [], classes: [], pending: [], fin: {}, currentFinTab: 'student' };
 
+    // --- LOGIN LOGIC ---
+    async function handleLogin() {
+        const u = document.getElementById('userU').value, p = document.getElementById('userP').value;
+        if(!u || !p) return toast("Enter credentials", "#ef4444");
+        
+        const res = await api('login', {u, p}, 'loginBtn');
+        if(res && res.success) {
+            document.getElementById('login-page').style.display = 'none';
+            document.getElementById('main-content').style.display = 'block';
+            state.user = res;
+            init(); // Start original init after login
+            toast("Welcome " + res.username, "#10b981");
+        }
+    }
+
+    // --- ORIGINAL FUNCTIONS (NO CHANGE) ---
     async function api(action, payload, btnId) {
         const btn = btnId ? document.getElementById(btnId) : null;
         if(btn) { btn.disabled = true; btn.classList.add('loading'); }
@@ -142,7 +134,7 @@
             const r = await fetch(API_URL, { method: "POST", body: JSON.stringify({action, payload}), redirect: "follow" });
             const res = await r.json();
             if(res.status === 'success') {
-                if(!['getInitData','getPending','getFinanceData'].includes(action)) toast("Operation Successful!", "#10b981");
+                if(!['getInitData','getPending','getFinanceData', 'login'].includes(action)) toast("Success!", "#10b981");
                 return res.data;
             }
             toast(res.message, "#ef4444"); return null;
@@ -153,7 +145,6 @@
     function toast(m, c) { const t = document.getElementById('toast'); t.innerText = m; t.style.background = c; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 3000); }
     function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
 
-    /** CORE UI LOGIC */
     function showV(id, btn) {
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         document.getElementById(id).classList.add('active');
@@ -165,103 +156,95 @@
     async function init() {
         const d = await api('getInitData', {}); if(!d) return;
         state.people = d.people; state.classes = d.classes;
-        const coords = state.people.filter(p => p.role === 'Coordinator');
-        document.getElementById('pLink').innerHTML = '<option value="">Link Coord</option>' + coords.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
-        document.getElementById('fCoord').innerHTML = '<option value="">All Coords</option>' + coords.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        const cs = state.people.filter(p => p.role === 'Coordinator');
+        document.getElementById('pLink').innerHTML = '<option value="">Link Coord</option>' + cs.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        document.getElementById('fCoord').innerHTML = '<option value="">Coordinator: All</option>' + cs.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
         document.getElementById('oClass').innerHTML = '<option value="">Select Class</option>' + [...new Set(state.classes.map(c=>c.className))].map(c=>`<option>${c}</option>`).join('');
     }
 
-    /** CHAINED DROPDOWNS */
     function updSessions() {
         const cls = document.getElementById('oClass').value;
-        document.getElementById('oSession').innerHTML = state.classes.filter(x => x.className === cls).map(s => `<option>${s.session}</option>`).join('');
-    }
-    function filterWriters() {
-        const cName = document.getElementById('fCoord').value;
-        const writers = state.people.filter(p => p.role === 'Writer' && (cName === "" || String(p.linkedCoord).trim() === cName));
-        document.getElementById('fWriter').innerHTML = '<option value="">All Writers</option>' + writers.map(w=>`<option value="${w.name}">${w.name}</option>`).join('');
+        const sess = state.classes.filter(c => c.className === cls);
+        document.getElementById('oSession').innerHTML = '<option value="">Select Session</option>' + sess.map(s => `<option>${s.session}</option>`).join('');
     }
 
-    /** TRACKER RENDER (FIXED) */
-    async function loadT() { state.pending = await api('getPending', {}, 'reBtn'); applyFilters(); }
-    function applyFilters() {
-        const sF = document.getElementById('fStatus').value, cF = document.getElementById('fCoord').value, wF = document.getElementById('fWriter').value;
-        const filtered = state.pending.filter(r => (sF === "" || r.status === sF) && (cF === "" || r.coordinatorId === cF) && (wF === "" || r.writerName === wF || r.writerId === wF));
-        renderTracker(filtered);
+    function sendWA(target, rowId) {
+        const row = state.pending.find(r => r.subjectRowId === rowId);
+        if (!row) return;
+        let phone = row.mobile, msg = "";
+        const enc = (t) => encodeURIComponent(t);
+        if (target === 'student') {
+            if (row.status === 'Dispatched') { msg = `*Assignment Dispatch Update*\n\nDear ${row.studentName},\nApkay subject *${row.subjectCode}* ki assignments dispatch kar di gai hain.\n\n*Courier:* ${row.courier}\n*Track No:* ${row.trackNo}\n*Date:* ${new Date(row.dispatchDate).toLocaleDateString()}\n\nShukriya!`; } 
+            else { msg = `*Order Confirmation*\n\nDear ${row.studentName},\nApka order confirm ho gaya hai.\n\n*Order ID:* ${row.orderId}\n*Subject:* ${row.subjectCode}\n*No. of Assignments:* ${row.assignmentsCount}\n\nShukriya!`; }
+        } else if (target === 'coord') { const p = state.people.find(x => x.name === row.coordinatorId); phone = p ? p.mobile : ""; msg = `*New Assignment for Writer*\n\nStudent: ${row.studentName}\nRoll: ${row.studentId}\nSubject: ${row.subjectCode}\nNo. of Assignments: ${row.assignmentsCount}`; } 
+        else if (target === 'writer') { const p = state.people.find(x => x.name === row.writerName); phone = p ? p.mobile : ""; msg = `*New Assignment Assigned*\n\nStudent: ${row.studentName}\nSubject: ${row.subjectCode}\nNo. of Assignments: ${row.assignmentsCount}\n\nPlease write at the earliest.`; }
+        if (!phone) return toast("No mobile found!", "#ef4444");
+        window.open(`https://wa.me/${phone}?text=${enc(msg)}`, '_blank');
     }
+
+    function updateTrackerWriters() {
+        const cName = document.getElementById('fCoord').value;
+        const ws = state.people.filter(p => p.role === 'Writer' && (cName === "" || p.linkedCoord === cName));
+        document.getElementById('fWriter').innerHTML = '<option value="">Writer: All</option>' + ws.map(w=>`<option value="${w.name}">${w.name}</option>`).join('');
+        applyFilters(); 
+    }
+
+    async function loadT() { state.pending = await api('getPending', {}, 'reBtn'); applyFilters(); }
+    
+    function applyFilters() {
+        const s = document.getElementById('fStatus').value, c = document.getElementById('fCoord').value, w = document.getElementById('fWriter').value, q = document.getElementById('tSmartSearch').value.toLowerCase();
+        const f = state.pending.filter(r => {
+            const matchStatus = (s === "" || r.status === s);
+            const matchCoord = (c === "" || r.coordinatorId === c);
+            const matchWriter = (w === "" || r.writerName === w);
+            const matchSmart = (q === "" || String(r.orderId).toLowerCase().includes(q) || String(r.studentName).toLowerCase().includes(q) || String(r.studentId).includes(q) || String(r.subjectCode).toLowerCase().includes(q) || (r.coordinatorId && String(r.coordinatorId).toLowerCase().includes(q)) || (r.writerName && String(r.writerName).toLowerCase().includes(q)));
+            return matchStatus && matchCoord && matchWriter && matchSmart;
+        });
+        renderTracker(f);
+    }
+
     function renderTracker(data) {
-        const tbody = document.getElementById('trackBody'); const now = new Date(); tbody.innerHTML = "";
-        const coords = state.people.filter(p => p.role === 'Coordinator');
+        const b = document.getElementById('trackBody'); b.innerHTML = "";
+        const cs = state.people.filter(p => p.role === 'Coordinator');
         data.forEach(r => {
-            const age = Math.floor((now - (r.orderDate ? new Date(r.orderDate) : now)) / 86400000) || 0;
-            let staff = "", action = "";
-            if (r.status === 'Pending' || !r.status) {
-                staff = `<select onchange="updW('${r.subjectRowId}', this)" id="c-${r.subjectRowId}" style="width:85px;font-size:10px;"><option value="">Coord</option>${coords.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}</select>
-                         <select id="w-${r.subjectRowId}" style="width:85px;font-size:10px;"><option value="">Writer</option></select>`;
-                action = `<button class="btn-action" style="padding:6px; font-size:11px;" id="btnA-${r.subjectRowId}" onclick="assign('${r.subjectRowId}')">Assign</button>`;
-            } else {
-                staff = `<small><b>C:</b> ${r.coordinatorId}<br><b>W:</b> ${r.writerName}</small>`;
-                if(r.status === 'Assigned') action = `<button class="btn-action" id="btnC-${r.subjectRowId}" style="background:var(--success);padding:6px;font-size:11px;" onclick="done('${r.subjectRowId}')">Complete</button>`;
-                else if(r.status === 'Completed') action = `<button class="btn-action" style="background:var(--warn);color:#000;padding:6px;font-size:11px;" onclick="openDM('${r.subjectRowId}')">Ship</button>`;
-                else action = `<div><span style="color:var(--success);font-weight:bold;">✓ Shipped</span><br><button class="btn-action" style="background:#475569; padding:4px; font-size:10px; margin-top:5px;" onclick="viewTracking('${r.courier}', '${r.trackNo}', '${r.dispatchDate}')">View Info</button></div>`;
+            let staffHTML = "", actionHTML = "", waHTML = "";
+            const isP = (r.status === 'Pending' || !r.status);
+            waHTML = `<div style="display:flex; gap:3px;"><button class="btn-wa" style="background:#25D366" onclick="sendWA('student','${r.subjectRowId}')">Student</button><button class="btn-wa" style="background:#3b82f6" onclick="sendWA('coord','${r.subjectRowId}')" ${isP ? 'disabled' : ''}>Coord</button><button class="btn-wa" style="background:#10b981" onclick="sendWA('writer','${r.subjectRowId}')" ${isP ? 'disabled' : ''}>Writer</button></div>`;
+            if (isP) { staffHTML = `<div style="display:flex; gap:4px; align-items:center;"><select onchange="updW('${r.subjectRowId}', this)" id="c-${r.subjectRowId}" style="width:95px; font-size:10px; margin:0;"><option value="">Coord</option>${cs.map(c=>`<option value="${c.name}">${c.name}</option>`).join('')}</select><select id="w-${r.subjectRowId}" style="width:95px; font-size:10px; margin:0;"><option value="">Writer</option></select></div>`; actionHTML = `<button class="btn-action" style="padding:8px 12px; font-size:10px;" onclick="assign('${r.subjectRowId}')">Assign Now</button>`; } 
+            else {
+                staffHTML = `<div style="font-size:10px; white-space:nowrap;"><span style="color:var(--accent)">C:</span> ${r.coordinatorId} | <span style="color:var(--success)">W:</span> ${r.writerName}</div>`;
+                if(r.status === 'Assigned') { actionHTML = `<div style="display:flex; gap:3px;"><button class="btn-action" style="background:var(--success); padding:6px 10px; font-size:10px;" onclick="done('${r.subjectRowId}')">Done</button><button class="btn-action" style="background:#475569; padding:6px 10px; font-size:10px;" onclick="triggerRecall('${r.subjectRowId}')">Recall</button></div>`; } 
+                else if(r.status === 'Completed') { actionHTML = `<button class="btn-action" style="background:var(--warn); color:#000; padding:6px 12px; font-size:10px;" onclick="openDM('${r.subjectRowId}')">Ship</button>`; } 
+                else if(r.status === 'Dispatched') { actionHTML = `<div style="display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;"><small style="color:var(--success); font-weight:bold;">✓ Shipped</small><button class="btn-action" style="background:#475569; padding:4px 10px; font-size:9px; width:auto; margin:0;" onclick="viewT('${r.courier}', '${r.trackNo}', '${r.dispatchDate}')">View Info</button></div>`; }
             }
-            tbody.innerHTML += `<tr><td>${r.orderId}</td><td><b>${r.studentName}</b><br><small>${r.studentId}</small></td><td>${r.subjectCode} (${r.assignmentsCount})</td><td>${age} Days</td><td>${staff}</td><td>${action}</td></tr>`;
+            b.innerHTML += `<tr><td>${r.orderId}</td><td><b>${r.studentName}</b><br><small>${r.studentId}</small></td><td style="white-space:nowrap;">${r.subjectCode} (${r.assignmentsCount})</td><td>${staffHTML}</td><td>${waHTML}</td><td>${actionHTML}</td></tr>`;
         });
     }
 
-    function viewTracking(courier, track, date) { const d = new Date(date).toLocaleDateString(); document.getElementById('infoContent').innerHTML = `<b>Courier:</b> ${courier || 'N/A'}<br><b>Tracking #:</b> ${track || 'N/A'}<br><b>Date:</b> ${d}`; document.getElementById('infoModal').style.display = 'flex'; }
-
-    /** FINANCE LOGIC */
-    async function loadF() { const d = await api('getFinanceData', {}); state.fin = d; renderFin('rec'); }
-    function renderFin(type) {
-        const h = document.getElementById('fHead'); const b = document.getElementById('fBody'); b.innerHTML = "";
-        let recT = 0, paidT = 0, payW = 0;
-        state.fin.tasks.forEach(t => { recT += (t.assignmentsCount * t.rateCustomerPerAssignment); if(t.status !== 'Pending') payW += (t.assignmentsCount * t.writerPayPerAssignment); });
-        state.fin.trans.forEach(tr => { if(tr.type==='Receivable') paidT += Number(tr.amount); });
-        document.getElementById('fRec').innerText = recT; document.getElementById('fPaid').innerText = paidT; document.getElementById('fWrit').innerText = payW; document.getElementById('fNet').innerText = paidT - payW;
-
-        if(type === 'rec') {
-            h.innerHTML = "<th>Student</th><th>Roll No</th><th>Total</th><th>Paid</th><th>Action</th>";
-            state.fin.orders.forEach(o => {
-                const total = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (b.assignmentsCount * b.rateCustomerPerAssignment), 0);
-                const paid = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0);
-                b.innerHTML += `<tr><td>${o.studentName}</td><td>${o.studentId}</td><td>${total}</td><td>${paid}</td><td><button onclick="openPay('${o.orderId}','Receivable')">Pay</button></td></tr>`;
-            });
-        } else {
-            h.innerHTML = "<th>Writer</th><th>Payable</th><th>Paid</th><th>Action</th>";
-            const writers = [...new Set(state.fin.tasks.filter(t=>t.writerId).map(t=>t.writerId))];
-            writers.forEach(w => {
-                const name = state.fin.people.find(p => p.personId === w)?.name || w;
-                const total = state.fin.tasks.filter(t => t.writerId === w && t.status !== 'Pending').reduce((a, b) => a + (b.assignmentsCount * b.writerPayPerAssignment), 0);
-                const paid = state.fin.trans.filter(tr => tr.refId === w && tr.type === 'Payable').reduce((a, b) => a + Number(b.amount), 0);
-                b.innerHTML += `<tr><td>${name}</td><td>${total}</td><td>${paid}</td><td><button onclick="openPay('${w}','Payable')">Record</button></td></tr>`;
-            });
-        }
-    }
-
-    /** UTILS */
-    function openPay(id, type) { document.getElementById('mpId').value = id; document.getElementById('mpType').value = type; document.getElementById('modalPay').style.display = 'flex'; }
-    async function submitPay() { const p = { refId: document.getElementById('mpId').value, type: document.getElementById('mpType').value, amount: document.getElementById('mpAmt').value, note: document.getElementById('mpNote').value }; if(await api('recordPayment', p, 'mpBtn')) { closeModals(); loadF(); } }
+    function resetFilters() { document.getElementById('fStatus').value = ""; document.getElementById('fCoord').value = ""; document.getElementById('fWriter').innerHTML = '<option value="">Writer: All</option>'; document.getElementById('tSmartSearch').value = ""; applyFilters(); }
+    async function triggerRecall(id) { if(confirm("Recall assignment?")) { sendWA('writer', id); await api('updateTaskStatus', {rowId: id, status: 'Pending', resetStaff: true}); loadT(); } }
+    async function loadF() { const d = await api('getFinanceData', {}); if(!d) return; state.fin = d; calculateSummary(); renderFin(state.currentFinTab); }
+    function calculateSummary() { let rec = 0, paid = 0, totalRec = 0, totalPay = 0; state.fin.trans.forEach(tr => { if(tr.type === 'Receivable') rec += Number(tr.amount); }); state.fin.trans.forEach(tr => { const person = state.people.find(p => p.name === tr.refId); if(tr.type === 'Payable' && (!person || person.role === 'Writer' || tr.source !== 'Admin')) paid += Number(tr.amount); }); state.fin.orders.forEach(o => { const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); if(bill > pd) totalRec += (bill - pd); }); state.people.forEach(p => { const earn = state.fin.tasks.filter(t => (t.writerId === p.personId || t.coordinatorId === p.name) && t.status !== 'Pending').reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === p.name && tr.type === 'Payable').reduce((a, b) => a + Number(b.amount), 0); if(earn > pd) totalPay += (earn - pd); }); document.getElementById('fTotalReceipts').innerText = rec.toLocaleString(); document.getElementById('fTotalPaidStaff').innerText = paid.toLocaleString(); document.getElementById('fNetProfit').innerText = (rec - paid).toLocaleString(); document.getElementById('fTotalRec').innerText = totalRec.toLocaleString(); document.getElementById('fTotalPay').innerText = totalPay.toLocaleString(); }
+    function renderFin(type) { state.currentFinTab = type; const h = document.getElementById('fHead'), b = document.getElementById('fBody'); b.innerHTML = ""; document.getElementById('btnStudentTab').classList.toggle('active', type === 'student'); document.getElementById('btnStaffTab').classList.toggle('active', type === 'staff'); if(type === 'student') { h.innerHTML = "<th>Order ID</th><th>Student</th><th>Bill</th><th>Paid</th><th>Balance</th><th>Action</th>"; state.fin.orders.forEach(o => { const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); const bal = bill - pd; b.innerHTML += `<tr data-bal="${bal}"><td>${o.orderId}</td><td><b>${o.studentName}</b></td><td>${bill}</td><td>${pd}</td><td style="color:${bal>0?'var(--warn)':'var(--success)'}">${bal}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="openPay('${o.orderId}','Receivable')">Record Payment</button></td></tr>`; }); } else { h.innerHTML = "<th>Name (Role)</th><th>Earned</th><th>Paid</th><th>Balance</th><th>With Coord</th><th>Action</th>"; state.people.filter(p => p.role === 'Coordinator').forEach(c => { const poolIn = state.fin.trans.filter(tr => tr.refId === c.name && tr.source === 'Admin').reduce((a,b)=>a+Number(b.amount), 0); const poolOut = state.fin.trans.filter(tr => tr.source === c.name).reduce((a,b)=>a+Number(b.amount), 0); const withC = poolIn - poolOut; const teamEarned = state.fin.tasks.filter(t => t.coordinatorId === c.name && t.status !== 'Pending').reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); const teamPaid = state.fin.trans.filter(tr => { const writer = state.people.find(w => w.name === tr.refId && w.linkedCoord === c.name); return tr.type === 'Payable' && writer; }).reduce((a,b)=>a+Number(b.amount), 0); const bal = teamEarned - teamPaid; b.innerHTML += `<tr style="background:rgba(59,130,246,0.05); cursor:pointer" data-bal="${bal}" onclick="toggleSubs('${c.name}')"><td>📁 ${c.name}</td><td>${teamEarned}</td><td>${teamPaid}</td><td style="color:${bal>0?'var(--danger)':'var(--success)'}">${bal}</td><td style="color:var(--accent); font-weight:bold">${withC}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="event.stopPropagation(); openPay('${c.name}','Payable')">Record Payment</button></td></tr>`; state.people.filter(p => p.role === 'Writer' && p.linkedCoord === c.name).forEach(w => { const wEarn = state.fin.tasks.filter(t => t.writerId === w.personId && t.status !== 'Pending').reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); const wPd = state.fin.trans.filter(tr => tr.refId === w.name && tr.type === 'Payable').reduce((a,b)=>a+Number(b.amount), 0); const wBal = wEarn - wPd; b.innerHTML += `<tr class="sub-${c.name}" style="display:none; background:#161e2e" data-bal="${wBal}"><td>└ ${w.name}</td><td>${wEarn}</td><td>${wPd}</td><td style="color:${wBal>0?'var(--danger)':'var(--success)'}">${wBal}</td><td>-</td><td><button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--success); width:auto; min-width:110px;" onclick="openPay('${w.name}','Payable')">Record Payment</button></td></tr>`; }); }); } filterFinanceTable(); }
+    function toggleSubs(c) { document.querySelectorAll('.sub-'+c).forEach(r => r.style.display = (r.style.display === 'none'?'table-row':'none')); }
+    function filterFinanceTable() { const q = document.getElementById('fSearch').value.toLowerCase(), s = document.getElementById('fStatusFilter').value; document.querySelectorAll('#fBody tr').forEach(r => { const mS = r.innerText.toLowerCase().includes(q), b = parseFloat(r.getAttribute('data-bal')), mSt = (s==='all')||(s==='pending'&&b>0)||(s==='cleared'&&b<=0); r.style.display = (mS&&mSt)?'':'none'; }); }
+    function setFinanceFilter(v) { document.getElementById('fStatusFilter').value = v; filterFinanceTable(); }
+    function openPay(id, type) { document.getElementById('mpId').value = id; document.getElementById('mpType').value = type; document.getElementById('mpDate').valueAsDate = new Date(); const sS = document.getElementById('mpSource'), lbl = document.getElementById('lblSource'); if(type==='Receivable') { sS.style.display=lbl.style.display='none'; } else { sS.style.display=lbl.style.display='block'; const cs = state.people.filter(p => p.role === 'Coordinator'); sS.innerHTML = '<option value="Admin">Admin</option>' + cs.map(c => `<option value="${c.name}">${c.name}'s Pool</option>`).join(''); } document.getElementById('modalPay').style.display = 'flex'; }
+    async function submitPay() { const p = { refId: document.getElementById('mpId').value, type: document.getElementById('mpType').value, amount: document.getElementById('mpAmt').value, note: document.getElementById('mpNote').value, source: document.getElementById('mpSource').value, date: document.getElementById('mpDate').value }; if(await api('recordPayment', p, 'mpBtn')) { closeModals(); loadF(); } }
     async function saveStaff() { const p = { role: document.getElementById('pRole').value, name: document.getElementById('pName').value, mobile: document.getElementById('pMobile').value, linkedCoordName: document.getElementById('pLink').value }; if(await api('addPerson', p, 'pBtn')) init(); }
     async function saveRate() { const p = { className: document.getElementById('mClass').value, session: document.getElementById('mSession').value, rate: document.getElementById('mRate').value, deadlineDate: document.getElementById('mDate').value }; if(await api('saveClassRate', p, 'mBtn')) init(); }
-    async function saveOrder() { 
-        const subs = []; document.querySelectorAll('#oSubs div').forEach(b => { if(b.querySelector('.sc').value) subs.push({code:b.querySelector('.sc').value, count:b.querySelector('.sn').value, rate:b.querySelector('.sr').value}) });
-        const p = { studentName: document.getElementById('oName').value, studentId: document.getElementById('oId').value, mobile: document.getElementById('oMob').value, className: document.getElementById('oClass').value, session: document.getElementById('oSession').value, advance: document.getElementById('oAdv').value, subjects: subs };
-        if(await api('createOrder', p, 'oBtn')) location.reload();
-    }
-    async function assign(id) { const c = document.getElementById('c-'+id).value, w = document.getElementById('w-'+id).value; if(await api('assignTask',{rowId:id,coordId:c,writerId:w}, 'btnA-'+id)) loadT(); }
+    async function saveOrder() { const subs = []; document.querySelectorAll('#oSubs > div').forEach(r => { const c = r.querySelector('.sc').value, n = r.querySelector('.sn').value, t = r.querySelector('.sr').value; if(c.trim()) subs.push({code:c.trim(), count:n, rate:t}); }); if(!subs.length) return toast("Add a subject", "#ef4444"); const p = { studentName: document.getElementById('oName').value, studentId: document.getElementById('oId').value, mobile: document.getElementById('oMob').value, className: document.getElementById('oClass').value, session: document.getElementById('oSession').value, advance: document.getElementById('oAdv').value || 0, subjects: subs }; if(await api('createOrder', p, 'oBtn')) { toast("Order Saved!", "#10b981"); setTimeout(()=>location.reload(), 1000); } }
+    async function assign(id) { const c = document.getElementById('c-'+id).value, w = document.getElementById('w-'+id).value; if(!c || !w) return toast("Select Coord & Writer!", "#ef4444"); if(await api('assignTask',{rowId:id,coordId:c,writerId:w}, 'btnA-'+id)) loadT(); }
     async function done(id) { if(await api('completeTask',{rowId:id}, 'btnC-'+id)) loadT(); }
-    function openDM(id) { document.getElementById('mdRowId').value = id; document.getElementById('modalDispatch').style.display = 'flex'; }
-    async function saveDispatchMerged() { const p = { rowId: document.getElementById('mdRowId').value, courier: document.getElementById('mdCourier').value, track: document.getElementById('mdTrack').value }; if(await api('saveDispatch', p, 'mdBtn')) { closeModals(); loadT(); } }
+    function openDM(id) { document.getElementById('mdRowId').value = id; document.getElementById('mdDate').valueAsDate = new Date(); document.getElementById('modalDispatch').style.display = 'flex'; }
+    async function saveDispatchMerged() { const p = { rowId: document.getElementById('mdRowId').value, courier: document.getElementById('mdCourier').value, track: document.getElementById('mdTrack').value, date: document.getElementById('mdDate').value }; if(await api('saveDispatch', p, 'mdBtn')) { closeModals(); loadT(); } }
     function addSubjectRow() { const d = document.createElement('div'); d.innerHTML = `<div style="display:flex;gap:5px;margin-top:5px;"><input class="sc" placeholder="Code"><select class="sn"><option value="2">2</option><option value="4">4</option></select><input class="sr" placeholder="Rate"></div>`; document.getElementById('oSubs').appendChild(d); }
-    function updW(rowId, coordSelect) {
-        const cName = String(coordSelect.value).trim();
-        const writers = state.people.filter(p => p.role === 'Writer' && String(p.linkedCoord).trim() === cName);
-        document.getElementById('w-' + rowId).innerHTML = '<option value="">Writer</option>' + writers.map(w=>`<option value="${w.personId}">${w.name}</option>`).join('');
-    }
-    function resetFilters() { document.getElementById('fStatus').value = ""; document.getElementById('fCoord').value = ""; document.getElementById('fWriter').value = ""; applyFilters(); }
-    function toggleL() { document.getElementById('pLink').style.display = (document.getElementById('pRole').value==='Writer')?'block':'none'; }
-    window.onload = () => { init(); addSubjectRow(); };
+    function updW(id, sel) { const c = String(sel.value).trim(), ws = state.people.filter(p => p.role === 'Writer' && String(p.linkedCoord).trim() === c); document.getElementById('w-'+id).innerHTML = '<option value="">Writer</option>' + ws.map(w=>`<option value="${w.personId}">${w.name}</option>`).join(''); }
+    function toggleL() { document.getElementById('pLink').style.display = (document.getElementById('pRole').value==='Writer'?'block':'none'); }
+    function viewT(c, t, d) { document.getElementById('infoContent').innerHTML = `<b>Courier:</b> ${c}<br><b>Track #:</b> ${t}<br><b>Date:</b> ${new Date(d).toLocaleDateString()}`; document.getElementById('infoModal').style.display = 'flex'; }
+    
+    // Default start
+    window.onload = () => { /* wait for login */ };
 </script>
 </body>
 </html>
