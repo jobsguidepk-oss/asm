@@ -38,7 +38,6 @@
 <body>
 <div id="toast"></div>
 
-<!-- 1. LOGIN PAGE VIEW -->
 <div id="login-page">
     <div class="login-card">
         <h2 style="color:var(--accent); margin-bottom:25px;">AALIYAN ACADEMY</h2>
@@ -49,9 +48,7 @@
     </div>
 </div>
 
-<!-- 2. MAIN DASHBOARD CONTENT (HIDDEN BY DEFAULT) -->
 <div id="main-content" style="display:none;">
-    <!-- MODALS -->
     <div id="modalDispatch" class="modal"><div class="card" style="width:400px;"><h3>Dispatch Assignment</h3><input type="hidden" id="mdRowId"><label><small>Dispatch Date</small></label><input type="date" id="mdDate"><select id="mdCourier"><option>Pak Post</option><option>TCS</option><option>LCS</option></select><input id="mdTrack" placeholder="Tracking Number"><button class="btn-action" id="mdBtn" onclick="saveDispatchMerged()">Confirm</button><button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button></div></div>
     <div id="infoModal" class="modal"><div class="card" style="width:350px;"><h3>Tracking Details</h3><div id="infoContent" style="margin:15px 0;"></div><button class="btn-action" onclick="closeModals()">Close</button></div></div>
     <div id="modalPay" class="modal"><div class="card" style="width:400px;"><h3 id="mpTitle">Record Transaction</h3><input type="hidden" id="mpId"><input type="hidden" id="mpType"><label id="lblSource" style="font-size:11px; color:var(--accent);">Source:</label><select id="mpSource"></select><label style="font-size:11px;">Date:</label><input type="date" id="mpDate"><input id="mpAmt" type="number" placeholder="Amount"><input id="mpNote" placeholder="Notes"><button class="btn-action" id="mpBtn" onclick="submitPay()">Save Payment</button><button class="btn-action" style="background:var(--danger); margin-top:5px;" onclick="closeModals()">Cancel</button></div></div>
@@ -63,7 +60,6 @@
         <button class="btn-nav" id="nav-finance" onclick="showV('finance', this)">Finance</button>
     </div>
 
-    <!-- VIEWS -->
     <div id="orders" class="view active">
         <div class="card">
             <h3>New Order Entry</h3>
@@ -121,12 +117,12 @@
             document.getElementById('login-page').style.display = 'none';
             document.getElementById('main-content').style.display = 'block';
             state.user = res;
-            init(); // Start original init after login
+            init(); 
             toast("Welcome " + res.username, "#10b981");
         }
     }
 
-    // --- ORIGINAL FUNCTIONS (NO CHANGE) ---
+    // --- API & NAV FUNCTIONS ---
     async function api(action, payload, btnId) {
         const btn = btnId ? document.getElementById(btnId) : null;
         if(btn) { btn.disabled = true; btn.classList.add('loading'); }
@@ -224,8 +220,70 @@
     function resetFilters() { document.getElementById('fStatus').value = ""; document.getElementById('fCoord').value = ""; document.getElementById('fWriter').innerHTML = '<option value="">Writer: All</option>'; document.getElementById('tSmartSearch').value = ""; applyFilters(); }
     async function triggerRecall(id) { if(confirm("Recall assignment?")) { sendWA('writer', id); await api('updateTaskStatus', {rowId: id, status: 'Pending', resetStaff: true}); loadT(); } }
     async function loadF() { const d = await api('getFinanceData', {}); if(!d) return; state.fin = d; calculateSummary(); renderFin(state.currentFinTab); }
-    function calculateSummary() { let rec = 0, paid = 0, totalRec = 0, totalPay = 0; state.fin.trans.forEach(tr => { if(tr.type === 'Receivable') rec += Number(tr.amount); }); state.fin.trans.forEach(tr => { const person = state.people.find(p => p.name === tr.refId); if(tr.type === 'Payable' && (!person || person.role === 'Writer' || tr.source !== 'Admin')) paid += Number(tr.amount); }); state.fin.orders.forEach(o => { const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); if(bill > pd) totalRec += (bill - pd); }); state.people.forEach(p => { const earn = state.fin.tasks.filter(t => (t.writerId === p.personId || t.coordinatorId === p.name) && t.status !== 'Pending').reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === p.name && tr.type === 'Payable').reduce((a, b) => a + Number(b.amount), 0); if(earn > pd) totalPay += (earn - pd); }); document.getElementById('fTotalReceipts').innerText = rec.toLocaleString(); document.getElementById('fTotalPaidStaff').innerText = paid.toLocaleString(); document.getElementById('fNetProfit').innerText = (rec - paid).toLocaleString(); document.getElementById('fTotalRec').innerText = totalRec.toLocaleString(); document.getElementById('fTotalPay').innerText = totalPay.toLocaleString(); }
-    function renderFin(type) { state.currentFinTab = type; const h = document.getElementById('fHead'), b = document.getElementById('fBody'); b.innerHTML = ""; document.getElementById('btnStudentTab').classList.toggle('active', type === 'student'); document.getElementById('btnStaffTab').classList.toggle('active', type === 'staff'); if(type === 'student') { h.innerHTML = "<th>Order ID</th><th>Student</th><th>Bill</th><th>Paid</th><th>Balance</th><th>Action</th>"; state.fin.orders.forEach(o => { const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); const bal = bill - pd; b.innerHTML += `<tr data-bal="${bal}"><td>${o.orderId}</td><td><b>${o.studentName}</b></td><td>${bill}</td><td>${pd}</td><td style="color:${bal>0?'var(--warn)':'var(--success)'}">${bal}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="openPay('${o.orderId}','Receivable')">Record Payment</button></td></tr>`; }); } else { h.innerHTML = "<th>Name (Role)</th><th>Earned</th><th>Paid</th><th>Balance</th><th>With Coord</th><th>Action</th>"; state.people.filter(p => p.role === 'Coordinator').forEach(c => { const poolIn = state.fin.trans.filter(tr => tr.refId === c.name && tr.source === 'Admin').reduce((a,b)=>a+Number(b.amount), 0); const poolOut = state.fin.trans.filter(tr => tr.source === c.name).reduce((a,b)=>a+Number(b.amount), 0); const withC = poolIn - poolOut; const teamEarned = state.fin.tasks.filter(t => t.coordinatorId === c.name && t.status !== 'Pending').reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); const teamPaid = state.fin.trans.filter(tr => { const writer = state.people.find(w => w.name === tr.refId && w.linkedCoord === c.name); return tr.type === 'Payable' && writer; }).reduce((a,b)=>a+Number(b.amount), 0); const bal = teamEarned - teamPaid; b.innerHTML += `<tr style="background:rgba(59,130,246,0.05); cursor:pointer" data-bal="${bal}" onclick="toggleSubs('${c.name}')"><td>📁 ${c.name}</td><td>${teamEarned}</td><td>${teamPaid}</td><td style="color:${bal>0?'var(--danger)':'var(--success)'}">${bal}</td><td style="color:var(--accent); font-weight:bold">${withC}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="event.stopPropagation(); openPay('${c.name}','Payable')">Record Payment</button></td></tr>`; state.people.filter(p => p.role === 'Writer' && p.linkedCoord === c.name).forEach(w => { const wEarn = state.fin.tasks.filter(t => t.writerId === w.personId && t.status !== 'Pending').reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); const wPd = state.fin.trans.filter(tr => tr.refId === w.name && tr.type === 'Payable').reduce((a,b)=>a+Number(b.amount), 0); const wBal = wEarn - wPd; b.innerHTML += `<tr class="sub-${c.name}" style="display:none; background:#161e2e" data-bal="${wBal}"><td>└ ${w.name}</td><td>${wEarn}</td><td>${wPd}</td><td style="color:${wBal>0?'var(--danger)':'var(--success)'}">${wBal}</td><td>-</td><td><button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--success); width:auto; min-width:110px;" onclick="openPay('${w.name}','Payable')">Record Payment</button></td></tr>`; }); }); } filterFinanceTable(); }
+    
+    /* CORRECTION: Agency Model Rules for Top Stats */
+    function calculateSummary() { 
+        let rec = 0, paid = 0, totalRec = 0, totalPayableToCoords = 0; 
+        state.fin.trans.forEach(tr => { if(tr.type === 'Receivable') rec += Number(tr.amount); }); 
+        state.fin.trans.forEach(tr => { const person = state.people.find(p => p.name === tr.refId); if(tr.type === 'Payable' && (!person || person.role === 'Writer' || tr.source !== 'Admin')) paid += Number(tr.amount); }); 
+        state.fin.orders.forEach(o => { const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); if(bill > pd) totalRec += (bill - pd); }); 
+        
+        // Agency Top Payable calculation rule
+        state.people.filter(p => p.role === 'Coordinator').forEach(c => {
+            const teamEarned = state.fin.tasks.filter(t => t.coordinatorId === c.name && (t.status === 'Completed' || t.status === 'Dispatched')).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0);
+            const writersOfThisCoord = state.people.filter(w => w.linkedCoord === c.name).map(w => w.name);
+            const teamPaid = state.fin.trans.filter(tr => tr.type === 'Payable' && writersOfThisCoord.includes(tr.refId)).reduce((a,b)=>a+Number(b.amount), 0);
+            const poolIn = state.fin.trans.filter(tr => tr.refId === c.name && tr.source === 'Admin').reduce((a,b)=>a+Number(b.amount), 0);
+            const poolOut = state.fin.trans.filter(tr => tr.source === c.name).reduce((a,b)=>a+Number(b.amount), 0);
+            const withC = poolIn - poolOut;
+            const netPayable = teamEarned - teamPaid - withC;
+            if(netPayable > 0) totalPayableToCoords += netPayable;
+        });
+
+        document.getElementById('fTotalReceipts').innerText = rec.toLocaleString(); 
+        document.getElementById('fTotalPaidStaff').innerText = paid.toLocaleString(); 
+        document.getElementById('fNetProfit').innerText = (rec - paid).toLocaleString(); 
+        document.getElementById('fTotalRec').innerText = totalRec.toLocaleString(); 
+        document.getElementById('fTotalPay').innerText = totalPayableToCoords.toLocaleString(); 
+    }
+
+    /* CORRECTION: Agency Model Rules for Ledgers */
+    function renderFin(type) { 
+        state.currentFinTab = type; const h = document.getElementById('fHead'), b = document.getElementById('fBody'); b.innerHTML = ""; 
+        document.getElementById('btnStudentTab').classList.toggle('active', type === 'student'); 
+        document.getElementById('btnStaffTab').classList.toggle('active', type === 'staff'); 
+        
+        if(type === 'student') { 
+            h.innerHTML = "<th>Order ID</th><th>Student</th><th>Bill</th><th>Paid</th><th>Balance</th><th>Action</th>"; 
+            state.fin.orders.forEach(o => { const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); const bal = bill - pd; b.innerHTML += `<tr data-bal="${bal}"><td>${o.orderId}</td><td><b>${o.studentName}</b></td><td>${bill}</td><td>${pd}</td><td style="color:${bal>0?'var(--warn)':'var(--success)'}">${bal}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="openPay('${o.orderId}','Receivable')">Record Payment</button></td></tr>`; }); 
+        } else { 
+            h.innerHTML = "<th>Name (Role)</th><th>Earned</th><th>Paid</th><th>Balance</th><th>With Coord</th><th>Action</th>"; 
+            state.people.filter(p => p.role === 'Coordinator').forEach(c => { 
+                const poolIn = state.fin.trans.filter(tr => tr.refId === c.name && tr.source === 'Admin').reduce((a,b)=>a+Number(b.amount), 0); 
+                const poolOut = state.fin.trans.filter(tr => tr.source === c.name).reduce((a,b)=>a+Number(b.amount), 0); 
+                const withC = poolIn - poolOut; 
+                
+                // Rules: Only Completed or Dispatched assignments build earning
+                const teamEarned = state.fin.tasks.filter(t => t.coordinatorId === c.name && (t.status === 'Completed' || t.status === 'Dispatched')).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); 
+                const writersOfThisCoord = state.people.filter(w => w.linkedCoord === c.name).map(w => w.name); 
+                const teamPaid = state.fin.trans.filter(tr => tr.type === 'Payable' && writersOfThisCoord.includes(tr.refId)).reduce((a,b)=>a+Number(b.amount), 0); 
+                
+                // Master Balance Formula
+                const bal = teamEarned - teamPaid - withC; 
+                
+                b.innerHTML += `<tr style="background:rgba(59,130,246,0.05); cursor:pointer" data-bal="${bal}" onclick="toggleSubs('${c.name}')"><td>📁 ${c.name}</td><td>${teamEarned}</td><td>${teamPaid}</td><td style="color:${bal>0?'var(--danger)':'var(--success)'}">${bal}</td><td style="color:var(--accent); font-weight:bold">${withC}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="event.stopPropagation(); openPay('${c.name}','Payable')">Record Payment</button></td></tr>`; 
+                
+                state.people.filter(p => p.role === 'Writer' && p.linkedCoord === c.name).forEach(w => { 
+                    const wEarn = state.fin.tasks.filter(t => t.writerId === w.personId && (t.status === 'Completed' || t.status === 'Dispatched')).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); 
+                    const wPd = state.fin.trans.filter(tr => tr.refId === w.name && tr.type === 'Payable').reduce((a,b)=>a+Number(b.amount), 0); 
+                    const wBal = wEarn - wPd; 
+                    b.innerHTML += `<tr class="sub-${c.name}" style="display:none; background:#161e2e" data-bal="${wBal}"><td>└ ${w.name}</td><td>${wEarn}</td><td>${wPd}</td><td style="color:${wBal>0?'var(--danger)':'var(--success)'}">${wBal}</td><td>-</td><td><button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--success); width:auto; min-width:110px;" onclick="openPay('${w.name}','Payable')">Record Payment</button></td></tr>`; 
+                }); 
+            }); 
+        } 
+        filterFinanceTable(); 
+    }
+
     function toggleSubs(c) { document.querySelectorAll('.sub-'+c).forEach(r => r.style.display = (r.style.display === 'none'?'table-row':'none')); }
     function filterFinanceTable() { const q = document.getElementById('fSearch').value.toLowerCase(), s = document.getElementById('fStatusFilter').value; document.querySelectorAll('#fBody tr').forEach(r => { const mS = r.innerText.toLowerCase().includes(q), b = parseFloat(r.getAttribute('data-bal')), mSt = (s==='all')||(s==='pending'&&b>0)||(s==='cleared'&&b<=0); r.style.display = (mS&&mSt)?'':'none'; }); }
     function setFinanceFilter(v) { document.getElementById('fStatusFilter').value = v; filterFinanceTable(); }
