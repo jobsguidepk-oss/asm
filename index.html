@@ -299,8 +299,8 @@
     document.getElementById('oMob').value = "";
     document.getElementById('oAdv').value = "";
     document.getElementById('oSubs').innerHTML = "";
-    addSubjectRow(); // Ek khali row wapas add kar dein
-}    async function assign(id) { const c = document.getElementById('c-'+id).value, w = document.getElementById('w-'+id).value; if(!c || !w) return toast("Select Coord & Writer!", "#ef4444"); if(await api('assignTask',{rowId:id,coordId:c,writerId:w}, 'btnA-'+id)) loadT(); }
+    addSubjectRow(); // Ek khali row wapas add kar dein } } 
+    async function assign(id) { const c = document.getElementById('c-'+id).value, w = document.getElementById('w-'+id).value; if(!c || !w) return toast("Select Coord & Writer!", "#ef4444"); if(await api('assignTask',{rowId:id,coordId:c,writerId:w}, 'btnA-'+id)) loadT(); }
     async function done(id) { if(await api('completeTask',{rowId:id}, 'btnC-'+id)) loadT(); }
     function openDM(id) { document.getElementById('mdRowId').value = id; document.getElementById('mdDate').valueAsDate = new Date(); document.getElementById('modalDispatch').style.display = 'flex'; }
     async function saveDispatchMerged() { const p = { rowId: document.getElementById('mdRowId').value, courier: document.getElementById('mdCourier').value, track: document.getElementById('mdTrack').value, date: document.getElementById('mdDate').value }; if(await api('saveDispatch', p, 'mdBtn')) { closeModals(); loadT(); } }
