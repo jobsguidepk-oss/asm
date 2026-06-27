@@ -104,7 +104,7 @@
 </div>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxVJUjEHEJV7ovlU9aG2Zlxe3o4PlrIoCDVvqGKtnuHlvVtSunK0PMDpqfgZJpLVgidzA/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbyuA24uo3hljssXNzdUpcoJhFiNw6rS48QoOUcO7dZdM3qURlf1t9hOOJcEvsHtEOrY/exec";
     let state = { user: null, people: [], classes: [], pending: [], fin: {}, currentFinTab: 'student' };
 
     // --- LOGIN LOGIC ---
@@ -165,19 +165,41 @@
     }
 
     function sendWA(target, rowId) {
-        const row = state.pending.find(r => r.subjectRowId === rowId);
-        if (!row) return;
-        let phone = row.mobile, msg = "";
-        const enc = (t) => encodeURIComponent(t);
-        if (target === 'student') {
-            if (row.status === 'Dispatched') { msg = `*Assignment Dispatch Update*\n\nDear ${row.studentName},\nApkay subject *${row.subjectCode}* ki assignments dispatch kar di gai hain.\n\n*Courier:* ${row.courier}\n*Track No:* ${row.trackNo}\n*Date:* ${new Date(row.dispatchDate).toLocaleDateString()}\n\nShukriya!`; } 
-            else { msg = `*Order Confirmation*\n\nDear ${row.studentName},\nApka order confirm ho gaya hai.\n\n*Order ID:* ${row.orderId}\n*Subject:* ${row.subjectCode}\n*No. of Assignments:* ${row.assignmentsCount}\n\nShukriya!`; }
-        } else if (target === 'coord') { const p = state.people.find(x => x.name === row.coordinatorId); phone = p ? p.mobile : ""; msg = `*New Assignment for Writer*\n\nStudent: ${row.studentName}\nRoll: ${row.studentId}\nSubject: ${row.subjectCode}\nNo. of Assignments: ${row.assignmentsCount}`; } 
-        else if (target === 'writer') { const p = state.people.find(x => x.name === row.writerName); phone = p ? p.mobile : ""; msg = `*New Assignment Assigned*\n\nStudent: ${row.studentName}\nSubject: ${row.subjectCode}\nNo. of Assignments: ${row.assignmentsCount}\n\nPlease write at the earliest.`; }
-        if (!phone) return toast("No mobile found!", "#ef4444");
-        window.open(`https://wa.me/${phone}?text=${enc(msg)}`, '_blank');
-    }
+    const row = state.pending.find(r => r.subjectRowId === rowId);
+    if (!row) return;
+    let phone = row.mobile, msg = "";
+    const enc = (t) => encodeURIComponent(t);
 
+    if (target === 'student') {
+        if (row.status === 'Dispatched') {
+            // Dispatch message (Single Row Based)
+            msg = `*Assignment Dispatch Update*\n\nDear ${row.studentName},\nApkay subject *${row.subjectCode}* ki assignments dispatch kar di gai hain.\n\n*Courier:* ${row.courier}\n*Track No:* ${row.trackNo}\n*Date:* ${new Date(row.dispatchDate).toLocaleDateString()}\n\nShukriya!`;
+        } else {
+            // SMART FIX: Find all subjects belonging to this same Order ID
+            const allOrderSubjects = state.pending.filter(r => r.orderId === row.orderId);
+            
+            // Build a clean bullet-list of all subjects & quantities
+            let subjectsListText = "";
+            allOrderSubjects.forEach((s, index) => {
+                subjectsListText += `${index + 1}. *${s.subjectCode}* (Qty: ${s.assignmentsCount})\n`;
+            });
+
+            // Single unified message for the student
+            msg = `*Order Confirmation*\n\nDear ${row.studentName},\nApka order confirm ho gaya hai.\n\n*Order ID:* ${row.orderId}\n\n*Your Registered Subjects:*\n${subjectsListText}\nShukriya!`;
+        }
+    } else if (target === 'coord') {
+        const p = state.people.find(x => x.name === row.coordinatorId);
+        phone = p ? p.mobile : "";
+        msg = `*New Assignment for Writer*\n\nStudent: ${row.studentName}\nRoll: ${row.studentId}\nSubject: ${row.subjectCode}\nNo. of Assignments: ${row.assignmentsCount}`;
+    } else if (target === 'writer') {
+        const p = state.people.find(x => x.name === row.writerName);
+        phone = p ? p.mobile : "";
+        msg = `*New Assignment Assigned*\n\nStudent: ${row.studentName}\nSubject: ${row.subjectCode}\nNo. of Assignments: ${row.assignmentsCount}\n\nPlease write at the earliest.`;
+    }
+    
+    if (!phone) return toast("No mobile found!", "#ef4444");
+    window.open(`https://wa.me/${phone}?text=${enc(msg)}`, '_blank');
+}
     function updateTrackerWriters() {
         const cName = document.getElementById('fCoord').value;
         const ws = state.people.filter(p => p.role === 'Writer' && (cName === "" || p.linkedCoord === cName));
