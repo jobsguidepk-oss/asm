@@ -232,7 +232,13 @@
             else {
                 staffHTML = `<div style="font-size:10px; white-space:nowrap;"><span style="color:var(--accent)">C:</span> ${r.coordinatorId} | <span style="color:var(--success)">W:</span> ${r.writerName}</div>`;
                 if(r.status === 'Assigned') { actionHTML = `<div style="display:flex; gap:3px;"><button class="btn-action" style="background:var(--success); padding:6px 10px; font-size:10px;" onclick="done('${r.subjectRowId}')">Done</button><button class="btn-action" style="background:#475569; padding:6px 10px; font-size:10px;" onclick="triggerRecall('${r.subjectRowId}')">Recall</button></div>`; } 
-                else if(r.status === 'Completed') { actionHTML = `<button class="btn-action" style="background:var(--warn); color:#000; padding:6px 12px; font-size:10px;" onclick="openDM('${r.subjectRowId}')">Ship</button>`; } 
+                // renderTracker function ke andar jahan status === 'Completed' check ho raha hai, wahan ye line replace karein:
+else if(r.status === 'Completed') { 
+    actionHTML = `<div style="display:flex; gap:3px;">
+        <button class="btn-action" style="background:var(--warn); color:#000; padding:6px 10px; font-size:10px;" onclick="openDM('${r.subjectRowId}')">Ship</button>
+        <button class="btn-action" style="background:#475569; padding:6px 10px; font-size:10px;" onclick="triggerRecall('${r.subjectRowId}')">Recall</button>
+    </div>`; 
+} 
                 else if(r.status === 'Dispatched') { actionHTML = `<div style="display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;"><small style="color:var(--success); font-weight:bold;">✓ Shipped</small><button class="btn-action" style="background:#475569; padding:4px 10px; font-size:9px; width:auto; margin:0;" onclick="viewT('${r.courier}', '${r.trackNo}', '${r.dispatchDate}')">View Info</button></div>`; }
             }
             b.innerHTML += `<tr><td>${r.orderId}</td><td><b>${r.studentName}</b><br><small>${r.studentId}</small></td><td style="white-space:nowrap;">${r.subjectCode} (${r.assignmentsCount})</td><td>${staffHTML}</td><td>${waHTML}</td><td>${actionHTML}</td></tr>`;
@@ -269,43 +275,124 @@
         document.getElementById('fTotalPay').innerText = totalPayableToCoords.toLocaleString(); 
     }
 
-    /* CORRECTION: Agency Model Rules for Ledgers */
     function renderFin(type) { 
-        state.currentFinTab = type; const h = document.getElementById('fHead'), b = document.getElementById('fBody'); b.innerHTML = ""; 
-        document.getElementById('btnStudentTab').classList.toggle('active', type === 'student'); 
-        document.getElementById('btnStaffTab').classList.toggle('active', type === 'staff'); 
-        
-        if(type === 'student') { 
-            h.innerHTML = "<th>Order ID</th><th>Student</th><th>Bill</th><th>Paid</th><th>Balance</th><th>Action</th>"; 
-            state.fin.orders.forEach(o => { const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); const bal = bill - pd; b.innerHTML += `<tr data-bal="${bal}"><td>${o.orderId}</td><td><b>${o.studentName}</b></td><td>${bill}</td><td>${pd}</td><td style="color:${bal>0?'var(--warn)':'var(--success)'}">${bal}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="openPay('${o.orderId}','Receivable')">Record Payment</button></td></tr>`; }); 
-        } else { 
-            h.innerHTML = "<th>Name (Role)</th><th>Earned</th><th>Paid</th><th>Balance</th><th>With Coord</th><th>Action</th>"; 
-            state.people.filter(p => p.role === 'Coordinator').forEach(c => { 
-                const poolIn = state.fin.trans.filter(tr => tr.refId === c.name && tr.source === 'Admin').reduce((a,b)=>a+Number(b.amount), 0); 
-                const poolOut = state.fin.trans.filter(tr => tr.source === c.name).reduce((a,b)=>a+Number(b.amount), 0); 
-                const withC = poolIn - poolOut; 
+    state.currentFinTab = type; const h = document.getElementById('fHead'), b = document.getElementById('fBody'); b.innerHTML = ""; 
+    document.getElementById('btnStudentTab').classList.toggle('active', type === 'student'); 
+    document.getElementById('btnStaffTab').classList.toggle('active', type === 'staff'); 
+    
+    if(type === 'student') { 
+        h.innerHTML = "<th>Order ID</th><th>Student</th><th>Bill</th><th>Paid</th><th>Balance</th><th>Action</th>"; 
+        state.fin.orders.forEach(o => { 
+            const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); 
+            const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); 
+            const bal = bill - pd; 
+            
+            // Student Ledger row with dynamic WA Button
+            b.innerHTML += `<tr data-bal="${bal}">
+                <td>${o.orderId}</td>
+                <td><b>${o.studentName}</b></td>
+                <td>${bill}</td>
+                <td>${pd}</td>
+                <td style="color:${bal>0?'var(--warn)':'var(--success)'}">${bal}</td>
+                <td>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--accent); width:auto;" onclick="openPay('${o.orderId}','Receivable')">Pay</button>
+                        <button class="btn-wa" style="background:#25D366; min-width:35px; padding:6px;" onclick="sendFinanceWA('student', '${o.orderId}', ${bill}, ${pd}, ${bal})">💬</button>
+                    </div>
+                </td>
+            </tr>`; 
+        }); 
+    } else { 
+        h.innerHTML = "<th>Name (Role)</th><th>Earned</th><th>Paid</th><th>Balance</th><th>With Coord</th><th>Action</th>"; 
+        state.people.filter(p => p.role === 'Coordinator').forEach(c => { 
+            const poolIn = state.fin.trans.filter(tr => tr.refId === c.name && tr.source === 'Admin').reduce((a,b)=>a+Number(b.amount), 0); 
+            const poolOut = state.fin.trans.filter(tr => tr.source === c.name).reduce((a,b)=>a+Number(b.amount), 0); 
+            const withC = poolIn - poolOut; 
+            
+            const teamEarned = state.fin.tasks.filter(t => t.coordinatorId === c.name && (t.status === 'Completed' || t.status === 'Dispatched')).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); 
+            const writersOfThisCoord = state.people.filter(w => w.linkedCoord === c.name).map(w => w.name); 
+            const teamPaid = state.fin.trans.filter(tr => tr.type === 'Payable' && writersOfThisCoord.includes(tr.refId)).reduce((a,b)=>a+Number(b.amount), 0); 
+            const bal = teamEarned - teamPaid - withC; 
+            
+            // Coordinator Main Row with WA Button
+            b.innerHTML += `<tr style="background:rgba(59,130,246,0.05); cursor:pointer" data-bal="${bal}" onclick="toggleSubs('${c.name}')">
+                <td>📁 ${c.name}</td>
+                <td>${teamEarned}</td>
+                <td>${teamPaid}</td>
+                <td style="color:${bal>0?'var(--danger)':'var(--success)'}">${bal}</td>
+                <td style="color:var(--accent); font-weight:bold">${withC}</td>
+                <td>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--accent); width:auto;" onclick="event.stopPropagation(); openPay('${c.name}','Payable')">Record</button>
+                        <button class="btn-wa" style="background:#25D366; min-width:35px; padding:6px;" onclick="event.stopPropagation(); sendFinanceWA('staff', '${c.name}', ${teamEarned}, ${teamPaid}, ${bal})">💬</button>
+                    </div>
+                </td>
+            </tr>`; 
+            
+            // Writers Rows with WA Buttons
+            state.people.filter(p => p.role === 'Writer' && p.linkedCoord === c.name).forEach(w => { 
+                const wTasks = state.fin.tasks.filter(t => t.writerId === w.personId && (t.status === 'Completed' || t.status === 'Dispatched'));
+                const wCount = wTasks.reduce((a, b) => a + Number(b.assignmentsCount), 0);
+                const wEarn = wTasks.reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); 
+                const wPd = state.fin.trans.filter(tr => tr.refId === w.name && tr.type === 'Payable').reduce((a,b)=>a+Number(b.amount), 0); 
+                const wBal = wEarn - wPd; 
                 
-                // Rules: Only Completed or Dispatched assignments build earning
-                const teamEarned = state.fin.tasks.filter(t => t.coordinatorId === c.name && (t.status === 'Completed' || t.status === 'Dispatched')).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); 
-                const writersOfThisCoord = state.people.filter(w => w.linkedCoord === c.name).map(w => w.name); 
-                const teamPaid = state.fin.trans.filter(tr => tr.type === 'Payable' && writersOfThisCoord.includes(tr.refId)).reduce((a,b)=>a+Number(b.amount), 0); 
-                
-                // Master Balance Formula
-                const bal = teamEarned - teamPaid - withC; 
-                
-                b.innerHTML += `<tr style="background:rgba(59,130,246,0.05); cursor:pointer" data-bal="${bal}" onclick="toggleSubs('${c.name}')"><td>📁 ${c.name}</td><td>${teamEarned}</td><td>${teamPaid}</td><td style="color:${bal>0?'var(--danger)':'var(--success)'}">${bal}</td><td style="color:var(--accent); font-weight:bold">${withC}</td><td><button class="btn-action" style="padding:8px 12px; font-size:10px; background:var(--accent); width:auto; min-width:110px;" onclick="event.stopPropagation(); openPay('${c.name}','Payable')">Record Payment</button></td></tr>`; 
-                
-                state.people.filter(p => p.role === 'Writer' && p.linkedCoord === c.name).forEach(w => { 
-                    const wEarn = state.fin.tasks.filter(t => t.writerId === w.personId && (t.status === 'Completed' || t.status === 'Dispatched')).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.writerPayPerAssignment)), 0); 
-                    const wPd = state.fin.trans.filter(tr => tr.refId === w.name && tr.type === 'Payable').reduce((a,b)=>a+Number(b.amount), 0); 
-                    const wBal = wEarn - wPd; 
-                    b.innerHTML += `<tr class="sub-${c.name}" style="display:none; background:#161e2e" data-bal="${wBal}"><td>└ ${w.name}</td><td>${wEarn}</td><td>${wPd}</td><td style="color:${wBal>0?'var(--danger)':'var(--success)'}">${wBal}</td><td>-</td><td><button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--success); width:auto; min-width:110px;" onclick="openPay('${w.name}','Payable')">Record Payment</button></td></tr>`; 
-                }); 
+                b.innerHTML += `<tr class="sub-${c.name}" style="display:none; background:#161e2e" data-bal="${wBal}">
+                    <td>└ ${w.name}</td>
+                    <td>${wEarn}</td>
+                    <td>${wPd}</td>
+                    <td style="color:${wBal>0?'var(--danger)':'var(--success)'}">${wBal}</td>
+                    <td>-</td>
+                    <td>
+                        <div style="display:flex; gap:4px;">
+                            <button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--success); width:auto;" onclick="openPay('${w.name}','Payable')">Record</button>
+                            <button class="btn-wa" style="background:#25D366; min-width:35px; padding:6px;" onclick="sendFinanceWA('staff', '${w.name}', ${wEarn}, ${wPd}, ${wBal}, ${wCount})">💬</button>
+                        </div>
+                    </td>
+                </tr>`; 
             }); 
-        } 
-        filterFinanceTable(); 
+        }); 
+    } 
+    filterFinanceTable(); 
+}
+
+// NEW FUNCTION: Handles Ledger WhatsApp Messaging Templates
+function sendFinanceWA(type, idOrName, earned, paid, balance, taskCount = 0) {
+    const enc = (t) => encodeURIComponent(t);
+    let phone = "", msg = "";
+
+    if(type === 'student') {
+        // Find student mobile and last active order status
+        const orderTasks = state.fin.tasks.filter(t => t.orderId === idOrName);
+        const parentOrder = state.fin.orders.find(o => o.orderId === idOrName);
+        if(!parentOrder) return toast("Order data missing", "#ef4444");
+        
+        phone = parentOrder.mobile;
+        
+        // Find unified status (agar koi ek bhi dispatched hai to dispatched, warna completed/working)
+        let finalStatus = "Processing";
+        if(orderTasks.every(t => t.status === 'Dispatched')) finalStatus = "Dispatched 🚚";
+        else if(orderTasks.some(t => t.status === 'Dispatched')) finalStatus = "Partially Dispatched 🚚";
+        else if(orderTasks.every(t => t.status === 'Completed')) finalStatus = "Completed (Ready) ✓";
+        else if(orderTasks.some(t => t.status === 'Assigned')) finalStatus = "Working 📝";
+
+        msg = `*AALIYAN ACADEMY - Financial Statement*\n\nDear ${parentOrder.studentName},\nApke Order ID *${idOrName}* ka current status aur ledger details niche darj hain:\n\n*Order Status:* ${finalStatus}\n*Total Bill:* Rs. ${earned.toLocaleString()}\n*Total Received:* Rs. ${paid.toLocaleString()}\n*Remaining Balance:* Rs. ${balance.toLocaleString()}\n\n${balance > 0 ? 'Kindly apna baqi duwaat jald az jald clear karwa dein. Shukriya!' : 'Apke tmam dues mukammal clear hain. JazakAllah!'}`;
+        
+    } else if(type === 'staff') {
+        // Find staff details
+        const person = state.people.find(p => p.name === idOrName);
+        phone = person ? person.mobile : "";
+        
+        if(balance <= 0) {
+            msg = `*AALIYAN ACADEMY - Accounts Clear Update*\n\nDear ${idOrName},\nApke account ka final ledger update kar diya gaya hai:\n\n*Status:* ALL DUES CLEARED ✓\n*Total Earned:* Rs. ${earned.toLocaleString()}\n*Total Paid:* Rs. ${paid.toLocaleString()}\n*Current Balance:* Rs. 0\n\nApk tmam dues clear kar diye gay hain agar koi discrepancy hy to contact karen. Shukriya!`;
+        } else {
+            msg = `*AALIYAN ACADEMY - Ledger Statement*\n\nDear ${idOrName},\nApka updated account balance statement darj-zail hai:\n\n${taskCount > 0 ? `*Total Completed Assignments:* ${taskCount}\n` : ''}*Total Earning:* Rs. ${earned.toLocaleString()}\n*Total Amount Paid:* Rs. ${paid.toLocaleString()}\n*Outstanding Balance:* Rs. ${balance.toLocaleString()}\n\nYe amount jald aapko transfer kar di jaye gi. Agar koi discrepancy hai to foran contact karen. Shukriya!`;
+        }
     }
 
+    if (!phone) return toast("No mobile found!", "#ef4444");
+    window.open(`https://wa.me/${phone}?text=${enc(msg)}`, '_blank');
+}
     function toggleSubs(c) { document.querySelectorAll('.sub-'+c).forEach(r => r.style.display = (r.style.display === 'none'?'table-row':'none')); }
     function filterFinanceTable() { const q = document.getElementById('fSearch').value.toLowerCase(), s = document.getElementById('fStatusFilter').value; document.querySelectorAll('#fBody tr').forEach(r => { const mS = r.innerText.toLowerCase().includes(q), b = parseFloat(r.getAttribute('data-bal')), mSt = (s==='all')||(s==='pending'&&b>0)||(s==='cleared'&&b<=0); r.style.display = (mS&&mSt)?'':'none'; }); }
     function setFinanceFilter(v) { document.getElementById('fStatusFilter').value = v; filterFinanceTable(); }
