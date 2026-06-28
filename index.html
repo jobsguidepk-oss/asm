@@ -281,13 +281,13 @@ else if(r.status === 'Completed') {
     document.getElementById('btnStaffTab').classList.toggle('active', type === 'staff'); 
     
     if(type === 'student') { 
-        h.innerHTML = "<th>Order ID</th><th>Student</th><th>Bill</th><th>Paid</th><th>Balance</th><th>Action</th>"; 
+        // Created a separate clean column for WhatsApp next to Action
+        h.innerHTML = "<th>Order ID</th><th>Student</th><th>Bill</th><th>Paid</th><th>Balance</th><th>Action</th><th>WhatsApp</th>"; 
         state.fin.orders.forEach(o => { 
             const bill = state.fin.tasks.filter(t => t.orderId === o.orderId).reduce((a, b) => a + (Number(b.assignmentsCount) * Number(b.rateCustomerPerAssignment)), 0); 
             const pd = state.fin.trans.filter(tr => tr.refId === o.orderId && tr.type === 'Receivable').reduce((a, b) => a + Number(b.amount), 0); 
             const bal = bill - pd; 
             
-            // Student Ledger row with dynamic WA Button
             b.innerHTML += `<tr data-bal="${bal}">
                 <td>${o.orderId}</td>
                 <td><b>${o.studentName}</b></td>
@@ -295,15 +295,16 @@ else if(r.status === 'Completed') {
                 <td>${pd}</td>
                 <td style="color:${bal>0?'var(--warn)':'var(--success)'}">${bal}</td>
                 <td>
-                    <div style="display:flex; gap:4px;">
-                        <button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--accent); width:auto;" onclick="openPay('${o.orderId}','Receivable')">Pay</button>
-                        <button class="btn-wa" style="background:#25D366; min-width:35px; padding:6px;" onclick="sendFinanceWA('student', '${o.orderId}', ${bill}, ${pd}, ${bal})">💬</button>
-                    </div>
+                    <button class="btn-action" style="padding:6px 12px; font-size:10px; background:var(--accent); width:auto; border-radius:20px;" onclick="openPay('${o.orderId}','Receivable')">Record Payment</button>
+                </td>
+                <td>
+                    <button class="btn-action" style="background:#25D366; padding:6px 16px; font-size:10px; width:auto; border-radius:20px;" onclick="sendFinanceWA('student', '${o.orderId}', ${bill}, ${pd}, ${bal})">Send Message</button>
                 </td>
             </tr>`; 
         }); 
     } else { 
-        h.innerHTML = "<th>Name (Role)</th><th>Earned</th><th>Paid</th><th>Balance</th><th>With Coord</th><th>Action</th>"; 
+        // Created a separate clean column for WhatsApp next to Action for Staff
+        h.innerHTML = "<th>Name (Role)</th><th>Earned</th><th>Paid</th><th>Balance</th><th>With Coord</th><th>Action</th><th>WhatsApp</th>"; 
         state.people.filter(p => p.role === 'Coordinator').forEach(c => { 
             const poolIn = state.fin.trans.filter(tr => tr.refId === c.name && tr.source === 'Admin').reduce((a,b)=>a+Number(b.amount), 0); 
             const poolOut = state.fin.trans.filter(tr => tr.source === c.name).reduce((a,b)=>a+Number(b.amount), 0); 
@@ -314,7 +315,6 @@ else if(r.status === 'Completed') {
             const teamPaid = state.fin.trans.filter(tr => tr.type === 'Payable' && writersOfThisCoord.includes(tr.refId)).reduce((a,b)=>a+Number(b.amount), 0); 
             const bal = teamEarned - teamPaid - withC; 
             
-            // Coordinator Main Row with WA Button
             b.innerHTML += `<tr style="background:rgba(59,130,246,0.05); cursor:pointer" data-bal="${bal}" onclick="toggleSubs('${c.name}')">
                 <td>📁 ${c.name}</td>
                 <td>${teamEarned}</td>
@@ -322,14 +322,13 @@ else if(r.status === 'Completed') {
                 <td style="color:${bal>0?'var(--danger)':'var(--success)'}">${bal}</td>
                 <td style="color:var(--accent); font-weight:bold">${withC}</td>
                 <td>
-                    <div style="display:flex; gap:4px;">
-                        <button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--accent); width:auto;" onclick="event.stopPropagation(); openPay('${c.name}','Payable')">Record</button>
-                        <button class="btn-wa" style="background:#25D366; min-width:35px; padding:6px;" onclick="event.stopPropagation(); sendFinanceWA('staff', '${c.name}', ${teamEarned}, ${teamPaid}, ${bal})">💬</button>
-                    </div>
+                    <button class="btn-action" style="padding:6px 12px; font-size:10px; background:var(--accent); width:auto; border-radius:20px;" onclick="event.stopPropagation(); openPay('${c.name}','Payable')">Record Payment</button>
+                </td>
+                <td>
+                    <button class="btn-action" style="background:#25D366; padding:6px 16px; font-size:10px; width:auto; border-radius:20px;" onclick="event.stopPropagation(); sendFinanceWA('staff', '${c.name}', ${teamEarned}, ${teamPaid}, ${bal})">Send Message</button>
                 </td>
             </tr>`; 
             
-            // Writers Rows with WA Buttons
             state.people.filter(p => p.role === 'Writer' && p.linkedCoord === c.name).forEach(w => { 
                 const wTasks = state.fin.tasks.filter(t => t.writerId === w.personId && (t.status === 'Completed' || t.status === 'Dispatched'));
                 const wCount = wTasks.reduce((a, b) => a + Number(b.assignmentsCount), 0);
@@ -344,10 +343,10 @@ else if(r.status === 'Completed') {
                     <td style="color:${wBal>0?'var(--danger)':'var(--success)'}">${wBal}</td>
                     <td>-</td>
                     <td>
-                        <div style="display:flex; gap:4px;">
-                            <button class="btn-action" style="padding:6px 10px; font-size:10px; background:var(--success); width:auto;" onclick="openPay('${w.name}','Payable')">Record</button>
-                            <button class="btn-wa" style="background:#25D366; min-width:35px; padding:6px;" onclick="sendFinanceWA('staff', '${w.name}', ${wEarn}, ${wPd}, ${wBal}, ${wCount})">💬</button>
-                        </div>
+                        <button class="btn-action" style="padding:6px 12px; font-size:10px; background:var(--success); width:auto; border-radius:20px;" onclick="openPay('${w.name}','Payable')">Record Payment</button>
+                    </td>
+                    <td>
+                        <button class="btn-action" style="background:#25D366; padding:6px 16px; font-size:10px; width:auto; border-radius:20px;" onclick="sendFinanceWA('staff', '${w.name}', ${wEarn}, ${wPd}, ${wBal}, ${wCount})">Send Message</button>
                     </td>
                 </tr>`; 
             }); 
@@ -355,7 +354,6 @@ else if(r.status === 'Completed') {
     } 
     filterFinanceTable(); 
 }
-
 // NEW FUNCTION: Handles Ledger WhatsApp Messaging Templates
 function sendFinanceWA(type, idOrName, earned, paid, balance, taskCount = 0) {
     const enc = (t) => encodeURIComponent(t);
